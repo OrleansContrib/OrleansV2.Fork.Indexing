@@ -44,40 +44,39 @@ namespace Orleans.Indexing
         public const byte TENTATIVE_TYPE_INSERT = 2;
         public byte TentativeOperationType = TENTATIVE_TYPE_NONE;
 
-        internal void Remove(T item, bool isTentativeRequest, bool isUniqueIndex)
+        internal void Remove(T item, IndexUpdateMode indexUpdateMode, bool isUniqueIndex)
         {
-            if (isTentativeRequest)
+            if (indexUpdateMode == IndexUpdateMode.Tentative)
             {
-                SetTentativeDelete();
+                this.SetTentativeDelete();
+                return;
             }
 
-            // In order to make the index update operations idempotent, the unique indexes can only do their action if the index entry is
-            // still marked as tentative. Otherwise, it means that tentative flag was removed by an earlier attempt and should not be done again.
+            // In order to make the index update operations idempotent, non-transactional unique indexes must only do their action if the index entry
+            // is still marked as tentative. Otherwise, it means that tentative flag was removed by an earlier attempt and should not be done again.
             // There is no concern about non-unique indexes, because they cannot affect the operations among different grains and therefore
             // cannot fail the operations on other grains.
-            else if (!isUniqueIndex || IsTentative)
+            if (!isUniqueIndex || indexUpdateMode == IndexUpdateMode.Transactional || this.IsTentative)
             {
-                ClearTentativeFlag();
+                this.ClearTentativeFlag();
                 this.Values.Remove(item);
             }
         }
 
-        internal void Add(T item, bool isTentative, bool isUniqueIndex)
+        internal void Add(T item, IndexUpdateMode indexUpdateMode, bool isUniqueIndex)
         {
             this.Values.Add(item);
-            if (isTentative)
+            if (indexUpdateMode == IndexUpdateMode.Tentative)
             {
-                SetTentativeInsert();
+                this.SetTentativeInsert();
+                return;
             }
 
-            // This condition check is not necessary: if the flag is set, we will unset it, and if it's unset, we will unset it again, which is a no-op.
-            else //if(!isUniqueIndex || isTentative())
-            {
-                ClearTentativeFlag();
-            }
+            // No condition check is necessary: if the flag is set, we will unset it, and if it's unset, we will unset it again, which is a no-op.
+            this.ClearTentativeFlag();
         }
 
-        internal bool IsTentative => IsTentativeDelete|| IsTentativeInsert;
+        internal bool IsTentative => this.IsTentativeDelete || this.IsTentativeInsert;
 
         internal bool IsTentativeDelete => this.TentativeOperationType == TENTATIVE_TYPE_DELETE;
 

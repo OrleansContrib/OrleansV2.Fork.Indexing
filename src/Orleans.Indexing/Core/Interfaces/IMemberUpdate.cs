@@ -1,8 +1,7 @@
-﻿namespace Orleans.Indexing
+namespace Orleans.Indexing
 {
     /// <summary>
-    /// IMemberUpdate encapsulates the information related to a grain update 
-    /// with respect to a specific index
+    /// IMemberUpdate encapsulates the information related to a grain update with respect to a specific index
     /// </summary>
     public interface IMemberUpdate
     {

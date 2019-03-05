@@ -6,7 +6,7 @@ namespace Orleans.Indexing
     public enum TotalIndexType
     {
         /// <summary>
-        /// Represents a hash-index that comprises of a single bucket.
+        /// Represents a hash-index that comprises a single bucket.
         /// 
         /// This type of index is not distributed and should be used with caution.
         /// The whole index should not have many entries, because it should be maintainable in a single silo.

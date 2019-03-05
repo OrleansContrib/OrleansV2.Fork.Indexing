@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.1.1" />
+    <PackageReference Include="Microsoft.Orleans.CodeGenerator.MSBuild" Version="2.2.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SportsTeamIndexing.Interfaces\SportsTeamIndexing.Interfaces.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Orleans.Core">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Core.Abstractions">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Core.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Core.Legacy">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Core.Legacy.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Indexing">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Indexing.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Runtime">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Runtime.Abstractions">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Runtime.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="OrleansProviders">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\OrleansProviders.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

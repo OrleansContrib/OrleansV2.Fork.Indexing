@@ -2,7 +2,7 @@
 
 > THIS PROJECT IS NOT READY FOR PRODUCTION USE. It has undergone a modest amount of testing and code review. It is published to collect community feedback and attract others to make it production-ready. 
 
-This is the readme for Orleans Indexing for this fork; here is the [readme for Orleans itself](README_Orleans.md).
+This is a temporary readme specifically for Orleans Indexing for this fork; here is the [readme for Orleans itself](README_Orleans.md). It has been updated for the conversion from inheritance-based indexing to facet-based, but is deprecated in favor of src\Orleans.Indexing\IndexingFacet.md and will soon revert to the usual Orleans readme.
 
 Enables grains to be indexed and queried by scalar properties. A research paper describing the interface and implementation can be found [here](http://cidrdb.org/cidr2017/papers/p29-bernstein-cidr17.pdf).
 
@@ -38,10 +38,9 @@ All the indexable properties of a grain should be defined in a properties class.
 
 In this example, we want to index the location of all the players that are currently active.
 - IPlayerGrain contains all properties of a player.
-- PlayerProperties contains the only indexed property of a player, which is its location.
+- PlayerProperties contains the only indexed properties of a player, which in this case is only its Location.
 
 ```c#
-    [Serializable]
     public class PlayerProperties
     {
         [ActiveIndex]
@@ -49,7 +48,7 @@ In this example, we want to index the location of all the players that are curre
     }
 ```
 
-The grain interface for the player should implement the `IIndexableGrain<PlayerProperties>` interface. This is a marker interface that declares the IPlayerGrain as an indexed grain interface where its indexed properties are defined in the PlayerProperties class.
+The grain interface for the player should implement the `IIndexableGrain<PlayerProperties>` interface. This is a marker interface that declares the IPlayerGrain as an indexed grain interface where its indexed properties are defined in the PlayerProperties class. As with all grain methods, getting and setting property values is done via Task-returning methods.
 
 ```c#
     public interface IPlayerGrain : IGrainWithIntegerKey, IIndexableGrain<PlayerProperties>
@@ -59,11 +58,26 @@ The grain interface for the player should implement the `IIndexableGrain<PlayerP
     }
 ```
 
-The grain implementation for the player should extend the IndexableGrain<PlayerProperties> class.
+The grain must contain state that is the backing storage for properties values and will be written to persistent storage; thus, PlayerState (and not PlayerProperties) must have the [Serializable] attribute. The indexing implementation will handle mapping of PlayerProperties to PlayerState when persisting the index. In most cases, PlayerState will simply inherit from PlayerProperties; if this is not the case, direct name mapping is used. 
+```c#
+    [Serializable]
+    public class PlayerState : PlayerProperties
+    {
+        // Other, non-indexed properties may be here
+    }
+```
+
+The grain implementation for the player should extend the Grain<TWrappedPlayerState> class, where TWrappedPlayerState is either IndexableGrainStateWrapper or FaultTolerantIndexableGrainStateWrapper. Additionally, it must provide a constructor that accepts one "facet" parameter that defines the indexing to use, and this definition must match the TWrappedPlayerProperties specification. Note that the properties class (in this case,PlayerProperties) is not specified on the Grain definition; the IIndexWriter implementation has already been populated with this information via reflection on the class' IIndexableGrain<> implementations. Lastly, it must provide some interface implementations as simple redirectors.
 
 ```c#
-    public class PlayerGrain : IndexableGrain<PlayerProperties>, IPlayerGrain
+    public class PlayerGrain : IndexableGrain<FaultTolerantIndexableGrainStateWrapper<PlayerState>>, IPlayerGrain
     {
+        IIndexWriter<PlayerState> indexWriter;
+
+        public PlayerGrain(
+            [FaultTolerantWorkflowIndexWriter]
+            IIndexWriter<PlayerState> indexWriter) => this.indexWriter = indexWriter;
+
         public string Location { get { return State.Location; } }
 
         public Task<string> GetLocation()
@@ -79,7 +93,17 @@ The grain implementation for the player should extend the IndexableGrain<PlayerP
             // corresponding indexes.
             await base.WriteStateAsync();
         }
-    }
+
+        #region Facet methods - required overrides of Grain<TGrainState>
+        public override Task OnActivateAsync() => this.indexWriter.OnActivateAsync(this, base.State, () => base.WriteStateAsync(), () => Task.CompletedTask);
+        public override Task OnDeactivateAsync() => this.indexWriter.OnDeactivateAsync(() => Task.CompletedTask);
+        protected override Task WriteStateAsync() => this.indexWriter.WriteAsync();
+        #endregion Facet methods - required overrides of Grain<TGrainState>
+
+        #region Required implementations of IIndexableGrain methods; they are only called for fault-tolerant index writing
+        public Task<Immutable<System.Collections.Generic.HashSet<Guid>>> GetActiveWorkflowIdsSet() => this.indexWriter.GetActiveWorkflowIdsSet();
+        public Task RemoveFromActiveWorkflowIds(System.Collections.Generic.HashSet<Guid> removedWorkflowId) => this.indexWriter.RemoveFromActiveWorkflowIds(removedWorkflowId);
+        #endregion required implementations of IIndexableGrain methods    }
 ```
 
 ### Using an index to query the grains
@@ -103,10 +127,10 @@ See [test/Orleans.Indexing.Tests/IndexingTestUtils.cs](/test/Orleans.Indexing.Te
 
 For detailed implementation examples, please have a look at [test/Orleans.Indexing.Tests](/test/Orleans.Indexing.Tests).
 
-#### *Player* tests
+#### *Player\** tests
 The *Player* series of tests focuses primarily on indexing Player Location (and occasionally Score).
-- Interfaces and classes are defined in the [test/Orleans.Indexing.Tests/Grains](/test/Orleans.Indexing.Tests/Grains) subdirectory.
-- Test runners are defined in the [test/Orleans.Indexing.Tests/Runners](/test/Orleans.Indexing.Tests/Runners) subdirectory.
+- Interfaces and classes are defined in the [test/Orleans.Indexing.Tests/Grains/Players](/test/Orleans.Indexing.Tests/Grains/Players) subdirectory.
+- Test runners are defined in the [test/Orleans.Indexing.Tests/Runners/Players](/test/Orleans.Indexing.Tests/Runners/Players) subdirectory.
 
 These use a number X for a grouping of tests, with the following form:
 - `IPlayerProperties` defines the properties of a player that may be indexed: Location and Score.
@@ -120,20 +144,28 @@ These use a number X for a grouping of tests, with the following form:
   - TProps must be a class (and should derive from IPlayerProperties)
 - `PlayerXGrain : PlayerGrain<PlayerXGrainState, PlayerXProperties>, IPlayerXGrain` defines the implementing class for PlayerX.
 
-#### *MultiIndex_\** tests
-The *MultiIndex_\** series of tests is separate from the *Player* series. This series of tests focuses on multiple indexes per grain.
-- Base State, Property, and Grain interfaces are defined in the [test/Orleans.Indexing.Tests/Grains](/test/Orleans.Indexing.Tests/Grains) subdirectory.
-- Test runners are also defined in the [test/Orleans.Indexing.Tests/Runners](/test/Orleans.Indexing.Tests/Runners) subdirectory.
+#### *MultiIndex\** tests
+The *MultiIndex\** series of tests is separate from the *Player* series. This series of tests focuses on multiple indexes per grain.
+- Base State, Property, and Grain interfaces are defined in the [test/Orleans.Indexing.Tests/Grains/MultiIndex](/test/Orleans.Indexing.Tests/Grains/MultiIndex) subdirectory.
+- Test runners are also defined in the [test/Orleans.Indexing.Tests/Runners/MultiIndex](/test/Orleans.Indexing.Tests/Runners/MultiIndex) subdirectory.
   - Each file contains the state, property, interface, and grain implementation definitions, as defined by the file name.
   - [test/Orleans.Indexing.Tests/Grains/ITestIndexProperties.cs](/test/Orleans.Indexing.Tests/Grains/ITestIndexProperties.cs) describes the abbreviations used in the file and test names.
     - For example, MultiIndex_AI_EG_Runner defines all interfaces, classes, and tests to implement testing for Eager Active indexes.
   - Testing includes unique and nonunique indexes on string and int. Additional combinations are TBD.
 
-## To Do
+#### *MultiInterface\** tests
+The *MultiInterface\** series of tests focuses on multiple indexed interfaces, each with one or more indexed properties, per grain. The multi-interface capability was introduced along with the Facet implementation. The tests are organized similarly to the *MultiIndex\** series:
+- Base State, Property, and Grain interfaces are defined in the [test/Orleans.Indexing.Tests/Grains/MultiInterface](/test/Orleans.Indexing.Tests/Grains/MultiInterface) subdirectory.
+- Test runners are also defined in the [test/Orleans.Indexing.Tests/Runners/MultiInterface](/test/Orleans.Indexing.Tests/Runners/MultiInterface) subdirectory.
+  - Each file contains the state, property, interface, and grain implementation definitions, as defined by the file name.
+  - [test/Orleans.Indexing.Tests/Grains/ITestIndexProperties.cs](/test/Orleans.Indexing.Tests/Grains/ITestIndexProperties.cs) describes the abbreviations used in the file and test names (except for those related to property names; MultiInterface uses the properties interface name instead), but MultiInterface does not otherwise use ITestIndexProperties.
+    - For example, MultiInterface_AI_EG_Runner defines all interfaces, classes, and tests to implement testing for Eager Active indexes.
+  - Testing uses IPersonGrain, IJobGrain, and IEmployeeGrain indexed interfaces on an Employee grain.
+
+  ## To Do
 
 - Direct Storage Managed Indexes
-- Replace workflows by transactions
-- Replace inheritance by dependency injection (like for transactions)
+- Add transactional indexes
 - Range indexes
 
 ## License

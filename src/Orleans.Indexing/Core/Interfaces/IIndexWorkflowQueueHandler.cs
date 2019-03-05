@@ -1,4 +1,4 @@
-﻿using Orleans.Concurrency;
+using Orleans.Concurrency;
 using Orleans.Services;
 using System.Threading.Tasks;
 
@@ -11,9 +11,9 @@ namespace Orleans.Indexing
     internal interface IIndexWorkflowQueueHandler : IGrainService, IGrainWithStringKey
     {
         /// <summary>
-        /// Accepts a linked list of work-flow records to handle until reaching a punctuation
+        /// Accepts a linked list of workflow records to handle until reaching a punctuation
         /// </summary>
-        /// <param name="workflowRecordsHead">the head of work-flow record linked-list</param>
+        /// <param name="workflowRecordsHead">the head of workflow record linked-list</param>
         Task HandleWorkflowsUntilPunctuation(Immutable<IndexWorkflowRecordNode> workflowRecordsHead);
 
         /// <summary>

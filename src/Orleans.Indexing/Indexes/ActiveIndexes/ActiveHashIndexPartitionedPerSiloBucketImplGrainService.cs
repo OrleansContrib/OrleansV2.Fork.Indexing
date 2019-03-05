@@ -36,7 +36,6 @@ namespace Orleans.Indexing
             {
                 IndexMap = new Dictionary<K, HashIndexSingleBucketEntry<V>>(),
                 IndexStatus = IndexStatus.Available
-                //, IsUnique = false; //a per-silo index cannot check for uniqueness
             };
 
             _parentIndexName = parentIndexName;
@@ -66,14 +65,13 @@ namespace Orleans.Indexing
         }
 
         public Task<bool> DirectApplyIndexUpdate(V updatedGrain, Immutable<IMemberUpdate> iUpdate, bool isUniqueIndex, IndexMetaData idxMetaData, SiloAddress siloAddress)
-            => DirectApplyIndexUpdate(updatedGrain, iUpdate.Value, isUniqueIndex, idxMetaData, siloAddress);
+            => this.DirectApplyIndexUpdate(updatedGrain, iUpdate.Value, isUniqueIndex, idxMetaData, siloAddress);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Task<bool> DirectApplyIndexUpdate(V updatedGrain, IMemberUpdate updt, bool isUniqueIndex, IndexMetaData idxMetaData, SiloAddress siloAddress)
-        {
-            HashIndexBucketUtils.UpdateBucket(updatedGrain, updt, state, isUniqueIndex, idxMetaData);
-            return Task.FromResult(true);
-        }
+            // Updates the index bucket synchronously (note that no other thread can run concurrently before we reach an await operation,
+            // when execution is yielded back to the Orleans scheduler, so no concurrency control mechanism (e.g., locking) is required).
+            => Task.FromResult(HashIndexBucketUtils.UpdateBucketState(updatedGrain, updt, state, isUniqueIndex, idxMetaData));
 
         private Exception LogException(string message, IndexingErrorCode errorCode)
         {
@@ -121,9 +119,9 @@ namespace Orleans.Indexing
             }
             if (state.IndexMap.TryGetValue(key, out HashIndexSingleBucketEntry<V> entry) && !entry.IsTentative)
             {
-                return (entry.Values.Count() == 1)
+                return (entry.Values.Count == 1)
                     ? Task.FromResult(entry.Values.GetEnumerator().Current)
-                    : throw LogException($"ParentIndex {_parentIndexName}: There are {entry.Values.Count()} values for the unique lookup key \"{key}\" on index \"{IndexUtils.GetIndexNameFromIndexGrain(this)}\".",
+                    : throw LogException($"ParentIndex {_parentIndexName}: There are {entry.Values.Count} values for the unique lookup key \"{key}\" on index \"{IndexUtils.GetIndexNameFromIndexGrain(this)}\".",
                                       IndexingErrorCode.IndexingIndexIsNotReadyYet_GrainServiceBucket4);
             }
             throw LogException($"ParentIndex {_parentIndexName}The lookup key \"{key}\" does not exist on index \"{IndexUtils.GetIndexNameFromIndexGrain(this)}\".",

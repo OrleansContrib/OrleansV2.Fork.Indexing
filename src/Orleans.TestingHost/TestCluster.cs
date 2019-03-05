@@ -350,7 +350,7 @@ namespace Orleans.TestingHost
         {
             try
             {
-                await this.InternalClient?.Close();
+                await (this.InternalClient?.Close() ?? Task.CompletedTask);
             }
             catch (Exception exc)
             {
@@ -423,7 +423,7 @@ namespace Orleans.TestingHost
         /// </summary>
         public async Task KillClientAsync()
         {
-            await this.InternalClient?.AbortAsync();
+            await (this.InternalClient?.AbortAsync() ?? Task.CompletedTask);
             this.InternalClient = null;
         }
 

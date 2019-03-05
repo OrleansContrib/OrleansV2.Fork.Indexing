@@ -37,8 +37,9 @@ namespace Orleans.Indexing
                 int queueSequenceNumber = int.Parse(parts[1]);
 
                 _base = new IndexWorkflowQueueBase(this.SiloIndexManager, grainInterfaceType, queueSequenceNumber,
-                                                   oldParentGrainServiceRef.GrainServiceSiloAddress, isDefinedAsFaultTolerantGrain:true,
-                                                   parentFunc:() => this.AsWeaklyTypedReference());
+                                                   oldParentGrainServiceRef.GrainServiceSiloAddress,
+                                                   isDefinedAsFaultTolerantGrain: true /*otherwise it shouldn't have reached here!*/,
+                                                   parentFunc: () => this.AsWeaklyTypedReference());
             }
             return Task.CompletedTask;
         }

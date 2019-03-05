@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Threading.Tasks;
 using HelloWorld.Grains;
@@ -39,7 +39,8 @@ namespace OrleansSiloHost
         {
             // define the cluster configuration
             var builder = new SiloHostBuilder()
-                .UseLocalhostClustering()
+                .AddMemoryGrainStorage("MemoryStorage")
+                .UseLocalhostClustering(gatewayPort: 30001)
                 .Configure<ClusterOptions>(options =>
                 {
                     options.ClusterId = "dev";

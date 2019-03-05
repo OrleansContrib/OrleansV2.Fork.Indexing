@@ -10,11 +10,11 @@ namespace Orleans.Indexing
     {
         private IIndexWorkflowQueueHandler _base;
 
-        internal IndexWorkflowQueueHandlerGrainService(SiloIndexManager siloIndexManager, Type iGrainType, int queueSeqNum, bool isDefinedAsFaultTolerantGrain)
-            : base(IndexWorkflowQueueHandlerBase.CreateIndexWorkflowQueueHandlerGrainReference(siloIndexManager, iGrainType, queueSeqNum, siloIndexManager.SiloAddress).GrainIdentity,
-                                                                                               siloIndexManager.Silo, siloIndexManager.LoggerFactory)
+        internal IndexWorkflowQueueHandlerGrainService(SiloIndexManager sim, Type grainInterfaceType, int queueSeqNum, bool isDefinedAsFaultTolerantGrain)
+            : base(IndexWorkflowQueueHandlerBase.CreateIndexWorkflowQueueHandlerGrainReference(sim, grainInterfaceType, queueSeqNum, sim.SiloAddress).GrainIdentity,
+                                                                                               sim.Silo, sim.LoggerFactory)
         {
-            _base = new IndexWorkflowQueueHandlerBase(siloIndexManager, iGrainType, queueSeqNum, siloIndexManager.SiloAddress, isDefinedAsFaultTolerantGrain,
+            _base = new IndexWorkflowQueueHandlerBase(sim, grainInterfaceType, queueSeqNum, sim.SiloAddress, isDefinedAsFaultTolerantGrain,
                                                       () => base.GetGrainReference());  // lazy is needed because the runtime isn't attached until Registered
         }
 

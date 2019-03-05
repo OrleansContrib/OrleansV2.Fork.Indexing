@@ -25,19 +25,19 @@ namespace Orleans.Indexing
         public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
             => (IQueryable<TElement>)((IQueryProvider)this).CreateQuery(expression);
 
-        private IQueryable CreateQuery(Expression expression, Type iGrainType, Type iPropertiesType)
+        private IQueryable CreateQuery(Expression expression, Type grainInterfaceType, Type iPropertiesType)
         {
             if (expression.NodeType == ExpressionType.Call)
             {
                 var methodCall = ((MethodCallExpression)expression);
                 if (IsWhereClause(methodCall)
-                    && CheckIsOrleansIndex(methodCall.Arguments[0], iGrainType, iPropertiesType, out IIndexFactory indexFactory, out IStreamProvider streamProvider)
+                    && CheckIsOrleansIndex(methodCall.Arguments[0], grainInterfaceType, iPropertiesType, out IIndexFactory indexFactory, out IStreamProvider streamProvider)
                     && methodCall.Arguments[1] is UnaryExpression ue && ue.NodeType == ExpressionType.Quote && ue.Operand.NodeType == ExpressionType.Lambda)
                 {
                     var whereClause = (LambdaExpression)ue.Operand;
                     if (TryGetIndexNameAndLookupValue(whereClause, iPropertiesType, out string indexName, out object lookupValue))
                     {
-                        var queryIndexedNodeType = typeof(QueryIndexedGrainsNode<,>).MakeGenericType(iGrainType, iPropertiesType);
+                        var queryIndexedNodeType = typeof(QueryIndexedGrainsNode<,>).MakeGenericType(grainInterfaceType, iPropertiesType);
                         return (IQueryable)Activator.CreateInstance(queryIndexedNodeType, indexFactory, streamProvider, indexName, lookupValue);
                     }
                 }
@@ -45,15 +45,15 @@ namespace Orleans.Indexing
             throw new NotSupportedException();
         }
 
-        private bool CheckIsOrleansIndex(Expression e, Type iGrainType, Type iPropertiesType, out IIndexFactory indexFactory, out IStreamProvider streamProvider)
+        private bool CheckIsOrleansIndex(Expression e, Type grainInterfaceType, Type iPropertiesType, out IIndexFactory indexFactory, out IStreamProvider streamProvider)
         {
             if (e.NodeType == ExpressionType.Constant)
             {
-                var queryActiveNodeType = typeof(QueryActiveGrainsNode<,>).MakeGenericType(iGrainType, iPropertiesType);
-                var valueType = ((ConstantExpression)e).Value.GetType().GetGenericTypeDefinition().MakeGenericType(iGrainType, iPropertiesType);
+                var queryActiveNodeType = typeof(QueryActiveGrainsNode<,>).MakeGenericType(grainInterfaceType, iPropertiesType);
+                var valueType = ((ConstantExpression)e).Value.GetType().GetGenericTypeDefinition().MakeGenericType(grainInterfaceType, iPropertiesType);
                 if (queryActiveNodeType.IsAssignableFrom(valueType))
                 {
-                    var qNode = ((QueryGrainsNode)((ConstantExpression)e).Value);
+                    var qNode = (QueryGrainsNode)((ConstantExpression)e).Value;
                     indexFactory = qNode.IndexFactory;
                     streamProvider = qNode.StreamProvider;
                     return true;
@@ -65,7 +65,7 @@ namespace Orleans.Indexing
         }
 
         private bool IsWhereClause(MethodCallExpression call)
-            => call.Arguments.Count() == 2 && call.Method.ReflectedType.Equals(typeof(Queryable)) && call.Method.Name == "Where";
+            => call.Arguments.Count == 2 && call.Method.ReflectedType.Equals(typeof(Queryable)) && call.Method.Name == "Where";
 
         /// <summary>
         /// This method tries to pull out the index name and lookup value from the given expression tree.
@@ -118,14 +118,14 @@ namespace Orleans.Indexing
         /// <returns>A bool value indicating whether the index name was found</returns>
         private static bool GetIndexName(LambdaExpression exprTree, Expression fieldExpr, out string indexName)
         {
-            ParameterExpression iGrainParam = exprTree.Parameters[0];
             if (fieldExpr is MemberExpression memberExpression)
             {
+                ParameterExpression fieldParam = exprTree.Parameters[0];
                 Expression innerFieldExpr = memberExpression.Expression;
-                if ((innerFieldExpr.NodeType == ExpressionType.Parameter && innerFieldExpr.Equals(iGrainParam)) ||
-                    (innerFieldExpr.NodeType == ExpressionType.Convert && innerFieldExpr is UnaryExpression ue && ue.Operand.Equals(iGrainParam)))
+                if ((innerFieldExpr.NodeType == ExpressionType.Parameter && innerFieldExpr.Equals(fieldParam)) ||
+                    (innerFieldExpr.NodeType == ExpressionType.Convert && innerFieldExpr is UnaryExpression ue && ue.Operand.Equals(fieldParam)))
                 {
-                    indexName = IndexUtils.PropertyNameToIndexName((memberExpression).Member.Name);
+                    indexName = IndexUtils.PropertyNameToIndexName(memberExpression.Member.Name);
                     return true;
                 }
             }

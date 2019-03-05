@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Orleans.Indexing
 {
@@ -14,11 +15,9 @@ namespace Orleans.Indexing
 
         public MemberUpdateReverseTentative(IMemberUpdate update) => this._update = update;
 
-        public object GetBeforeImage()
-            => this._update.GetAfterImage();
+        public object GetBeforeImage() => this._update.GetAfterImage();
 
-        public object GetAfterImage()
-            => this._update.GetBeforeImage();
+        public object GetAfterImage() => this._update.GetBeforeImage();
 
         public IndexOperationType OperationType
         {
@@ -34,24 +33,14 @@ namespace Orleans.Indexing
             }
         }
 
-        public override string ToString()
-        {
-            return MemberUpdate.ToString(this);
-        }
+        public override string ToString() => MemberUpdate.ToString(this);
 
         /// <summary>
         /// Reverses a dictionary of updates by converting all updates to MemberUpdateReverseTentative
         /// </summary>
         /// <param name="updates">the dictionary of updates to be reverse</param>
         /// <returns>the reversed dictionary of updates</returns>
-        internal static IDictionary<string, IMemberUpdate> Reverse(IDictionary<string, IMemberUpdate> updates)
-        {
-            var result = new Dictionary<string, IMemberUpdate>();
-            foreach (var updt in updates)
-            {
-                result.Add(updt.Key, new MemberUpdateReverseTentative(updt.Value));
-            }
-            return result;
-        }
+        internal static IReadOnlyDictionary<string, IMemberUpdate> Reverse(IReadOnlyDictionary<string, IMemberUpdate> updates)
+            => (IReadOnlyDictionary<string, IMemberUpdate>)updates.ToDictionary(kvp => kvp.Key, kvp => new MemberUpdateReverseTentative(kvp.Value) as IMemberUpdate);
     }
 }

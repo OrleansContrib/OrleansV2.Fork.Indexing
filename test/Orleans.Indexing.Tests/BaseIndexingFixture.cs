@@ -17,6 +17,7 @@ namespace Orleans.Indexing.Tests
         protected TestClusterBuilder ConfigureTestClusterForIndexing(TestClusterBuilder builder)
         {
             // Currently nothing
+            //builder.Options.InitialSilosCount = 1;    // For debugging if needed
             return builder;
         }
 
@@ -29,11 +30,7 @@ namespace Orleans.Indexing.Tests
             }
 
             hostBuilder.AddMemoryGrainStorage(IndexingTestConstants.GrainStore)
-                       .AddMemoryGrainStorage(IndexingTestConstants.MemoryStore)
-                       .AddMemoryGrainStorage("PubSubStore") // PubSubStore service is run for silo startup
-                       .AddMemoryGrainStorage(IndexingConstants.INDEXING_WORKFLOWQUEUE_STORAGE_PROVIDER_NAME)
-                       .AddMemoryGrainStorage(IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)
-                       .AddSimpleMessageStreamProvider(IndexingConstants.INDEXING_STREAM_PROVIDER_NAME)
+                       .AddMemoryGrainStorage("PubSubStore") // PubSubStore service is needed for the streams underlying OrleansQueryResults
                        .ConfigureLogging(loggingBuilder =>
                        {
                            loggingBuilder.SetMinimumLevel(LogLevel.Information);
@@ -57,15 +54,14 @@ namespace Orleans.Indexing.Tests
                         opt.CanCreateResources = true;
                         opt.DB = databaseName;
                         opt.InitStage = ServiceLifecycleStage.RuntimeStorageServices;
-                        opt.StateFieldsToIndex.AddRange(GetStateFieldsToIndex());
+                        opt.StateFieldsToIndex.AddRange(GetDSMIStateFieldsToIndex());
                     })
                 : hostBuilder;
         }
 
         internal static IClientBuilder Configure(IClientBuilder clientBuilder)
         {
-            return clientBuilder.AddSimpleMessageStreamProvider(IndexingConstants.INDEXING_STREAM_PROVIDER_NAME)
-                                .ConfigureLogging(loggingBuilder =>
+            return clientBuilder.ConfigureLogging(loggingBuilder =>
                                 {
                                     loggingBuilder.SetMinimumLevel(LogLevel.Information);
                                     loggingBuilder.AddDebug();
@@ -78,72 +74,32 @@ namespace Orleans.Indexing.Tests
                                 });
         }
 
-        private static IEnumerable<string> GetStateFieldsToIndex()
+        // Code below adapted from ApplicationPartsIndexableGrainLoader to identify the necessary fields for the DSMI storage
+        // provider to index.
+
+        private static IEnumerable<string> GetDSMIStateFieldsToIndex()
         {
-            var grainTypes = typeof(BaseIndexingFixture).Assembly.GetConcreteGrainClasses(logger: null).ToArray();
-            var interfaces = new Dictionary<Type, string[]>();
-            foreach (var grainType in grainTypes)
+            var grainClassTypes = typeof(BaseIndexingFixture).Assembly.GetConcreteGrainClasses(logger: null).ToArray();
+
+            // Orleans.CosmosDB appends the field names to "State."; thus we do not prepend the interface names.
+            var interfacesToIndexedPropertyNames = new Dictionary<Type, string[]>();
+            foreach (var grainClassType in grainClassTypes)
             {
-                bool isFaultTolerant = IsSubclassOfRawGenericType(typeof(IndexableGrain<,>), grainType);
-                GetFieldsForASingleGrainType(grainType, interfaces, isFaultTolerant ? "UserState." : string.Empty);
+                GetDSMIFieldsForASingleGrainType(grainClassType, interfacesToIndexedPropertyNames);
             }
-            return new HashSet<string>(interfaces.SelectMany(kvp => kvp.Value));
+            return new HashSet<string>(interfacesToIndexedPropertyNames.Where(kvp => kvp.Value.Length > 0).SelectMany(kvp => kvp.Value));
         }
 
-        private static void GetFieldsForASingleGrainType(Type grainType, Dictionary<Type, string[]> interfaces, string fieldPrefix)
+        internal static void GetDSMIFieldsForASingleGrainType(Type grainClassType, Dictionary<Type, string[]> interfacesToIndexedPropertyNames)
         {
-            Type[] grainInterfaces = grainType.GetInterfaces();
-
-            // If there is an interface that directly extends IIndexableGrain<TProperties>...
-            Type iIndexableGrain = grainInterfaces.Where(itf => itf.IsGenericType && itf.GetGenericTypeDefinition() == typeof(IIndexableGrain<>)).FirstOrDefault();
-            if (iIndexableGrain != null)
+            foreach (var (grainInterfaceType, propertiesClassType) in ApplicationPartsIndexableGrainLoader.EnumerateIndexedInterfacesForAGrainClassType(grainClassType)
+                                                                        .Where(tup => !interfacesToIndexedPropertyNames.ContainsKey(tup.interfaceType)))
             {
-                // ... and its generic argument is a class (TProperties)... 
-                Type propertiesArgType = iIndexableGrain.GetGenericArguments()[0];
-                if (propertiesArgType.GetTypeInfo().IsClass)
-                {
-                    // ... then examine all indexed fields for all the descendant interfaces of IIndexableGrain<TProperties> (these interfaces are defined by end-users).
-                    foreach (Type userDefinedIGrain in grainInterfaces.Where(itf => iIndexableGrain != itf && iIndexableGrain.IsAssignableFrom(itf)
-                                                                                 && !interfaces.ContainsKey(itf)))
-                    {
-                        GetFieldsForASingleInterface(interfaces, propertiesArgType, userDefinedIGrain, grainType, fieldPrefix);
-                    }
-                }
+                interfacesToIndexedPropertyNames[grainInterfaceType] = propertiesClassType.GetProperties()
+                                                                        .Where(propInfo => propInfo.GetCustomAttributes<StorageManagedIndexAttribute>(inherit: false).Any())
+                                                                        .Select(propInfo => IndexingConstants.UserStatePrefix + propInfo.Name)
+                                                                        .ToArray();
             }
-        }
-
-        private static void GetFieldsForASingleInterface(Dictionary<Type, string[]> interfaces, Type propertiesArgType,
-                                                         Type userDefinedIGrain, Type userDefinedGrainImpl, string fieldPrefix)
-        {
-            // All the properties in TProperties are scanned for StorageManagedIndex annotation.
-            var fields = new List<string>();
-            foreach (PropertyInfo propInfo in propertiesArgType.GetProperties())
-            {
-                var indexAttr = propInfo.GetCustomAttributes<StorageManagedIndexAttribute>(inherit: false).FirstOrDefault();
-                if (indexAttr != null)
-                {
-                    fields.Add(fieldPrefix + propInfo.Name);
-                }
-            }
-
-            if (fields.Count > 0)
-            {
-                interfaces[userDefinedIGrain] = fields.ToArray();
-            }
-        }
-
-        public static bool IsSubclassOfRawGenericType(Type genericType, Type typeToCheck)
-        {
-            // Used to check for IndexableGrain<,> inheritance; IndexableGrain is a fault-tolerant subclass of IndexableGrainNonFaultTolerant,
-            // so we will only see it if the grain's index type is fault tolerant.
-            for (; typeToCheck != null && typeToCheck != typeof(object); typeToCheck = typeToCheck.BaseType)
-            {
-                if (genericType == (typeToCheck.IsGenericType ? typeToCheck.GetGenericTypeDefinition() : typeToCheck))
-                {
-                    return true;
-                }
-            }
-            return false;
         }
     }
 }

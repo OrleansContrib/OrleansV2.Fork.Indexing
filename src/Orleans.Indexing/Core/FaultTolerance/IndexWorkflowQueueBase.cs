@@ -35,10 +35,10 @@ namespace Orleans.Indexing
 
         //the grain storage for the index workflow queue
         private IGrainStorage __grainStorage;
-        private IGrainStorage StorageProvider => __grainStorage ?? GetGrainStorage();
+        private IGrainStorage StorageProvider => this.__grainStorage ?? (this.__grainStorage = typeof(IndexWorkflowQueueGrainService).GetGrainStorage(this.SiloIndexManager.ServiceProvider));
 
         private int _queueSeqNum;
-        private Type _iGrainType;
+        private Type _grainInterfaceType;
 
         private bool HasAnyTotalIndex => GetHasAnyTotalIndex();
         private bool? __hasAnyTotalIndex = null;
@@ -73,17 +73,15 @@ namespace Orleans.Indexing
 
         public const int BATCH_SIZE = int.MaxValue;
 
-        public static int NUM_AVAILABLE_INDEX_WORKFLOW_QUEUES => Environment.ProcessorCount;
-
         private SiloAddress _silo;
-        private SiloIndexManager _siloIndexManager;
+        private SiloIndexManager SiloIndexManager;
         private Lazy<GrainReference> _lazyParent;
 
         internal IndexWorkflowQueueBase(SiloIndexManager siloIndexManager, Type grainInterfaceType, int queueSequenceNumber, SiloAddress silo,
                                         bool isDefinedAsFaultTolerantGrain, Func<GrainReference> parentFunc)
         {
             queueState = new IndexWorkflowQueueState(silo);
-            _iGrainType = grainInterfaceType;
+            _grainInterfaceType = grainInterfaceType;
             _queueSeqNum = queueSequenceNumber;
 
             _workflowRecordsTail = null;
@@ -98,15 +96,15 @@ namespace Orleans.Indexing
             _pendingWriteRequests = new HashSet<int>();
 
             _silo = silo;
-            _siloIndexManager = siloIndexManager;
+            SiloIndexManager = siloIndexManager;
             _lazyParent = new Lazy<GrainReference>(parentFunc, true);
         }
 
         private IIndexWorkflowQueueHandler InitWorkflowQueueHandler() 
             => __handler = _lazyParent.Value.IsGrainService
-                ? _siloIndexManager.GetGrainService<IIndexWorkflowQueueHandler>(
-                        IndexWorkflowQueueHandlerBase.CreateIndexWorkflowQueueHandlerGrainReference(_siloIndexManager, _iGrainType, _queueSeqNum, _silo))
-                : _siloIndexManager.GrainFactory.GetGrain<IIndexWorkflowQueueHandler>(CreateIndexWorkflowQueuePrimaryKey(_iGrainType, _queueSeqNum));
+                ? SiloIndexManager.GetGrainService<IIndexWorkflowQueueHandler>(
+                        IndexWorkflowQueueHandlerBase.CreateIndexWorkflowQueueHandlerGrainReference(SiloIndexManager, _grainInterfaceType, _queueSeqNum, _silo))
+                : SiloIndexManager.GrainFactory.GetGrain<IIndexWorkflowQueueHandler>(CreateIndexWorkflowQueuePrimaryKey(_grainInterfaceType, _queueSeqNum));
 
         public Task AddAllToQueue(Immutable<List<IndexWorkflowRecord>> workflowRecords)
         {
@@ -175,10 +173,10 @@ namespace Orleans.Indexing
 
         private IndexWorkflowRecordNode AddPunctuationAt(int batchSize)
         {
-            if (_workflowRecordsTail == null) throw new WorkflowIndexException("Adding a punctuation to an empty work-flow queue is not possible.");
+            if (_workflowRecordsTail == null) throw new WorkflowIndexException("Adding a punctuation to an empty workflow queue is not possible.");
 
             var punctuationHead = queueState.State.WorkflowRecordsHead;
-            if (punctuationHead.IsPunctuation()) throw new WorkflowIndexException("The element at the head of work-flow queue cannot be a punctuation.");
+            if (punctuationHead.IsPunctuation) throw new WorkflowIndexException("The element at the head of workflow queue cannot be a punctuation.");
 
             if (batchSize == int.MaxValue)
             {
@@ -198,20 +196,23 @@ namespace Orleans.Indexing
         private List<IndexWorkflowRecord> RemoveFromQueueUntilPunctuation(IndexWorkflowRecordNode from)
         {
             List<IndexWorkflowRecord> workflowRecords = new List<IndexWorkflowRecord>();
-            if (from != null && !from.IsPunctuation())
+            if (from != null && !from.IsPunctuation)
             {
                 workflowRecords.Add(from.WorkflowRecord);
             }
 
             IndexWorkflowRecordNode tmp = from?.Next;
-            while (tmp != null && !tmp.IsPunctuation())
+            while (tmp != null && !tmp.IsPunctuation)
             {
                 workflowRecords.Add(tmp.WorkflowRecord);
                 tmp = tmp.Next;
                 tmp.Prev.Clean();
             }
 
-            if (tmp == null) from.Remove(ref queueState.State.WorkflowRecordsHead, ref _workflowRecordsTail);
+            if (tmp == null)
+            {
+                from.Remove(ref queueState.State.WorkflowRecordsHead, ref _workflowRecordsTail);
+            }
             else
             {
                 from.Next = tmp;
@@ -240,13 +241,13 @@ namespace Orleans.Indexing
                     //clear all pending write requests, as this attempt will do them all.
                     _pendingWriteRequests.Clear();
 
-                    //write the state back to the storage
-                    string grainType = "Orleans.Indexing.IndexWorkflowQueue-" + IndexUtils.GetFullTypeName(_iGrainType);
+                    //write the state back to the storage unconditionally
+                    var grainTypeName = "Orleans.Indexing.IndexWorkflowQueue-" + IndexUtils.GetFullTypeName(_grainInterfaceType);
                     var saveETag = this.queueState.ETag;
                     try
                     {
                         this.queueState.ETag = StorageProviderUtils.ANY_ETAG;
-                        await StorageProvider.WriteStateAsync(grainType, _lazyParent.Value, this.queueState);
+                        await StorageProvider.WriteStateAsync(grainTypeName, _lazyParent.Value, this.queueState);
                     }
                     finally
                     {
@@ -259,26 +260,28 @@ namespace Orleans.Indexing
             }
         }
 
+        private static Immutable<IndexWorkflowRecordNode> EmptyIndexWorkflowRecordNode = new Immutable<IndexWorkflowRecordNode>(null);
+
         public Task<Immutable<IndexWorkflowRecordNode>> GiveMoreWorkflowsOrSetAsIdle()
         {
             List<IndexWorkflowRecord> removedWorkflows = RemoveFromQueueUntilPunctuation(queueState.State.WorkflowRecordsHead);
             if (IsFaultTolerant)
             {
-                //The task of removing the work-flow record IDs from the grain runs in parallel with persisting the state. At this point, there
-                //is a possibility that some work-flow record IDs do not get removed from the indexable grains while the work-flow record is removed
-                //from the queue. This is fine, because having some dangling work-flow IDs in some indexable grains is harmless.
-                //TODO: add a garbage collector that runs once in a while and removes the dangling work-flow IDs (i.e., the work-flow IDs that exist in the
-                //      indexable grain, but its corresponding work-flow record does not exist in the work-flow queue.
+                //The task of removing the workflow record IDs from the grain runs in parallel with persisting the state. At this point, there
+                //is a possibility that some workflow record IDs do not get removed from the indexable grains while the workflow record is removed
+                //from the queue. This is fine, because having some dangling workflow IDs in some indexable grains is harmless.
+                //TODO: add a garbage collector that runs once in a while and removes the dangling workflow IDs (i.e., the workflow IDs that exist in the
+                //      indexable grain, but its corresponding workflow record does not exist in the workflow queue.
                 //Task.WhenAll(
                 //    RemoveWorkflowRecordsFromIndexableGrains(removedWorkflows),
-                PersistState(//)
+                this.PersistState(//)
             ).Ignore();
             }
 
             if (_workflowRecordsTail == null)
             {
                 _isHandlerWorkerIdle = 1;
-                return Task.FromResult(new Immutable<IndexWorkflowRecordNode>(null));
+                return Task.FromResult(EmptyIndexWorkflowRecordNode);
             }
             else
             {
@@ -291,18 +294,15 @@ namespace Orleans.Indexing
         {
             if (!__hasAnyTotalIndex.HasValue)
             {
-                __hasAnyTotalIndex = _siloIndexManager.IndexFactory.GetGrainIndexes(_iGrainType).HasAnyTotalIndex;
+                __hasAnyTotalIndex = SiloIndexManager.IndexFactory.GetGrainIndexes(_grainInterfaceType).HasAnyTotalIndex;
             }
             return __hasAnyTotalIndex.Value;
         }
 
-        private IGrainStorage GetGrainStorage()
-            => __grainStorage = typeof(IndexWorkflowQueueGrainService).GetGrainStorage(_siloIndexManager.ServiceProvider);
-
         public Task<Immutable<List<IndexWorkflowRecord>>> GetRemainingWorkflowsIn(HashSet<Guid> activeWorkflowsSet)
         {
             var result = new List<IndexWorkflowRecord>();
-            for (var current = queueState.State.WorkflowRecordsHead; current != null; current = current.Next)
+            for (var current = queueState.State.WorkflowRecordsHead; current != null && !current.IsPunctuation; current = current.Next)
             {
                 if (activeWorkflowsSet.Contains(current.WorkflowRecord.WorkflowId))
                 {
@@ -328,7 +328,7 @@ namespace Orleans.Indexing
 
         public static IIndexWorkflowQueue GetIndexWorkflowQueueFromGrainHashCode(SiloIndexManager siloIndexManager, Type grainInterfaceType, int grainHashCode, SiloAddress siloAddress)
         {
-            int queueSeqNum = StorageProviderUtils.PositiveHash(grainHashCode, NUM_AVAILABLE_INDEX_WORKFLOW_QUEUES);
+            int queueSeqNum = StorageProviderUtils.PositiveHash(grainHashCode, siloIndexManager.NumWorkflowQueuesPerInterface);
             var grainReference = CreateGrainServiceGrainReference(siloIndexManager, grainInterfaceType, queueSeqNum, siloAddress);
             return siloIndexManager.GetGrainService<IIndexWorkflowQueue>(grainReference);
         }

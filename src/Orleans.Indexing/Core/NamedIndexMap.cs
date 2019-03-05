@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +8,13 @@ namespace Orleans.Indexing
     internal class NamedIndexMap : IEnumerable<KeyValuePair<string, IndexInfo>>
     {
         private IDictionary<string, IndexInfo> IndexesByName { get; set; } = new Dictionary<string, IndexInfo>();
+
+        internal Type PropertiesClassType { get; }
+
+        internal NamedIndexMap(Type propertiesClassType)
+        {
+            this.PropertiesClassType = propertiesClassType;
+        }
 
         internal IndexInfo this[string indexName]
         {
@@ -24,8 +31,8 @@ namespace Orleans.Indexing
 
         internal bool Any(Func<IndexInfo, bool> pred) => this.IndexesByName.Values.Any(pred);
 
-        internal bool HasAnyTotalIndex => this.Any(indexInfo => indexInfo.IndexInterface is ITotalIndex);
         internal bool HasAnyUniqueIndex => this.Any(indexInfo => indexInfo.MetaData.IsUniqueIndex);
+        internal bool HasAnyTotalIndex => this.Any(indexInfo => indexInfo.IndexInterface.IsTotalIndex());
 
         internal IEnumerable<string> Keys => this.IndexesByName.Keys;
 

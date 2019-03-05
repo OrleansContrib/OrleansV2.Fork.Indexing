@@ -109,9 +109,9 @@ namespace Orleans.Indexing
             V updatedGrain = g.AsReference<V>(this.SiloIndexManager);
 
             // Updates the index bucket synchronously (note that no other thread can run concurrently before we reach an await operation,
-            // so no concurrency control mechanism (e.g., locking) is required).
+            // when execution is yielded back to the Orleans scheduler, so no concurrency control mechanism (e.g., locking) is required).
             // 'fixIndexUnavailableOnDelete' indicates whether the index was still unavailable when we received a delete operation.
-            if (!HashIndexBucketUtils.UpdateBucket(updatedGrain, updt, this.State, isUniqueIndex, idxMetaData, out K befImg, out HashIndexSingleBucketEntry<V> befEntry, out bool fixIndexUnavailableOnDelete))
+            if (!HashIndexBucketUtils.UpdateBucketState(updatedGrain, updt, this.State, isUniqueIndex, idxMetaData, out K befImg, out HashIndexSingleBucketEntry<V> befEntry, out bool fixIndexUnavailableOnDelete))
             {
                 await (await GetNextBucketAndPersist()).DirectApplyIndexUpdate(g, updt.AsImmutable(), isUniqueIndex, idxMetaData, siloAddress);
             }
@@ -179,9 +179,12 @@ namespace Orleans.Indexing
             {
                 throw LogException("Index is not still available", IndexingErrorCode.IndexingIndexIsNotReadyYet_GrainBucket1);
             }
-            if (this.State.IndexMap.TryGetValue(key, out HashIndexSingleBucketEntry<V> entry) && !entry.IsTentative)
+            if (this.State.IndexMap.TryGetValue(key, out HashIndexSingleBucketEntry<V> entry))
             {
-                await result.OnNextBatchAsync(entry.Values);
+                if (!entry.IsTentative)
+                {
+                    await result.OnNextBatchAsync(entry.Values);
+                }
                 await result.OnCompletedAsync();
             }
             else if (this.State.NextBucket != null)
@@ -200,11 +203,12 @@ namespace Orleans.Indexing
             {
                 throw LogException("Index is not still available", IndexingErrorCode.IndexingIndexIsNotReadyYet_GrainBucket2);
             }
-            if (this.State.IndexMap.TryGetValue(key, out HashIndexSingleBucketEntry<V> entry) && !entry.IsTentative)
+            if (this.State.IndexMap.TryGetValue(key, out HashIndexSingleBucketEntry<V> entry))
             {
-                return (entry.Values.Count() == 1)
+                return (entry.Values.Count == 1 && !entry.IsTentative)
                     ? entry.Values.GetEnumerator().Current
-                    : throw LogException($"There are {entry.Values.Count()} values for the unique lookup key \"{key}\" on index \"{IndexUtils.GetIndexNameFromIndexGrain(this)}\".",
+                    : throw LogException($"There are {entry.Values.Count} values for the unique lookup key \"{key}\" on index" +
+                                         $" \"{IndexUtils.GetIndexNameFromIndexGrain(this)}\", and the entry is{(entry.IsTentative ? "" : " not")} tentative.",
                                         IndexingErrorCode.IndexingIndexIsNotReadyYet_GrainBucket3);
             }
             return (this.State.NextBucket != null)

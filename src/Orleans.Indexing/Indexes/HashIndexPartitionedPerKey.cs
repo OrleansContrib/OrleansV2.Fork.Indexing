@@ -12,7 +12,7 @@ namespace Orleans.Indexing
     /// A simple implementation of a partitioned in-memory hash-index
     /// </summary>
     /// <typeparam name="K">type of hash-index key</typeparam>
-    /// <typeparam name="V">type of grain that is being indexed</typeparam>
+    /// <typeparam name="V">type of grain interface that is being indexed</typeparam>
     /// <typeparam name="BucketT">type of bucket for the index</typeparam>
     public abstract class HashIndexPartitionedPerKey<K, V, BucketT> : IHashIndexInterface<K, V> where V : class, IIndexableGrain
         where BucketT : IHashIndexPartitionedPerKeyBucketInterface<K, V>, IGrainWithStringKey
@@ -38,6 +38,14 @@ namespace Orleans.Indexing
 
             IDictionary<IIndexableGrain, IList<IMemberUpdate>> updates = iUpdates.Value;
             IDictionary<int, IDictionary<IIndexableGrain, IList<IMemberUpdate>>> bucketUpdates = new Dictionary<int, IDictionary<IIndexableGrain, IList<IMemberUpdate>>>();
+
+            void AddUpdateToBucket(IIndexableGrain g, int bucket, IMemberUpdate update)
+            {
+                var bucketUpdatesMap = bucketUpdates.GetOrAdd(bucket, () => new Dictionary<IIndexableGrain, IList<IMemberUpdate>>());
+                var bucketUpdatesList = bucketUpdatesMap.GetOrAdd(g, () => new List<IMemberUpdate>());
+                bucketUpdatesList.Add(update);
+            }
+
             foreach (var kv in updates)
             {
                 IIndexableGrain g = kv.Key;
@@ -52,70 +60,42 @@ namespace Orleans.Indexing
 
                         if (befImgHash == aftImgHash)
                         {
-                            AddUpdateToBucket(bucketUpdates, g, befImgHash, update);
+                            AddUpdateToBucket(g, befImgHash, update);
                         }
                         else
                         {
-                            AddUpdateToBucket(bucketUpdates, g, befImgHash, new MemberUpdateOverridenOperation(update, IndexOperationType.Delete));
-                            AddUpdateToBucket(bucketUpdates, g, aftImgHash, new MemberUpdateOverridenOperation(update, IndexOperationType.Insert));
+                            AddUpdateToBucket(g, befImgHash, new MemberUpdateOverridenOperation(update, IndexOperationType.Delete));
+                            AddUpdateToBucket(g, aftImgHash, new MemberUpdateOverridenOperation(update, IndexOperationType.Insert));
                         }
                     }
                     else if (opType == IndexOperationType.Insert)
                     {
                         int aftImgHash = GetBucketIndexFromHashCode(update.GetAfterImage());
-                        AddUpdateToBucket(bucketUpdates, g, aftImgHash, update);
+                        AddUpdateToBucket(g, aftImgHash, update);
                     }
                     else if (opType == IndexOperationType.Delete)
                     {
                         int befImgHash = GetBucketIndexFromHashCode(update.GetBeforeImage());
-                        AddUpdateToBucket(bucketUpdates, g, befImgHash, update);
+                        AddUpdateToBucket(g, befImgHash, update);
                     }
                 }
             }
 
             var results = await Task.WhenAll(bucketUpdates.Select(kv =>
             {
-                BucketT bucket = GetGrain(IndexUtils.GetIndexGrainPrimaryKey(typeof(V), this._indexName) + "_" + kv.Key);
+                BucketT bucket = this.GetBucketGrain(kv.Key);
                 return bucket.DirectApplyIndexUpdateBatch(kv.Value.AsImmutable(), isUnique, idxMetaData, siloAddress);
             }));
 
             logger.Trace($"Finished calling DirectApplyIndexUpdateBatch with the following parameters: isUnique = {isUnique}, siloAddress = {siloAddress}," +
                          $" iUpdates = {MemberUpdate.UpdatesToString(iUpdates.Value)}, results = '{string.Join(", ", results)}'");
-
             return true;
         }
 
-        private BucketT GetGrain(string key) => this.indexManager.GrainFactory.GetGrain<BucketT>(key);
-
-        /// <summary>
-        /// Adds an grain update to the bucketUpdates dictionary
-        /// </summary>
-        /// <param name="bucketUpdates">the bucketUpdates dictionary</param>
-        /// <param name="g">target grain</param>
-        /// <param name="bucket">the bucket index</param>
-        /// <param name="update">the update to be added</param>
-        private void AddUpdateToBucket(IDictionary<int, IDictionary<IIndexableGrain, IList<IMemberUpdate>>> bucketUpdates, IIndexableGrain g, int bucket, IMemberUpdate update)
+        private BucketT GetBucketGrain(int keyValueHash)
         {
-            if (bucketUpdates.TryGetValue(bucket, out IDictionary<IIndexableGrain, IList<IMemberUpdate>> tmpBucketUpdatesMap))
-            {
-                if (!tmpBucketUpdatesMap.TryGetValue(g, out IList<IMemberUpdate> tmpUpdateList))
-                {
-                    tmpUpdateList = new List<IMemberUpdate>(new[] { update });
-                    tmpBucketUpdatesMap.Add(g, tmpUpdateList);
-                }
-                else
-                {
-                    tmpUpdateList.Add(update);
-                }
-            }
-            else
-            {
-                tmpBucketUpdatesMap = new Dictionary<IIndexableGrain, IList<IMemberUpdate>>
-                {
-                    { g, new List<IMemberUpdate>(new[] { update }) }
-                };
-                bucketUpdates.Add(bucket, tmpBucketUpdatesMap);
-            }
+            var bucketPrimaryKey = IndexUtils.GetIndexGrainPrimaryKey(typeof(V), this._indexName) + "_" + keyValueHash;
+            return this.indexManager.GrainFactory.GetGrain<BucketT>(bucketPrimaryKey);
         }
 
         public async Task<bool> DirectApplyIndexUpdate(IIndexableGrain g, Immutable<IMemberUpdate> iUpdate, bool isUniqueIndex, IndexMetaData idxMetaData, SiloAddress siloAddress)
@@ -126,13 +106,13 @@ namespace Orleans.Indexing
             {
                 int befImgHash = GetBucketIndexFromHashCode(update.GetBeforeImage());
                 int aftImgHash = GetBucketIndexFromHashCode(update.GetAfterImage());
-                BucketT befImgBucket = GetGrain(IndexUtils.GetIndexGrainPrimaryKey(typeof(V), this._indexName) + "_" + befImgHash);
+                BucketT befImgBucket = this.GetBucketGrain(befImgHash);
                 if (befImgHash == aftImgHash)
                 {
                     return await befImgBucket.DirectApplyIndexUpdate(g, iUpdate, isUniqueIndex, idxMetaData);
                 }
 
-                BucketT aftImgBucket = GetGrain(IndexUtils.GetIndexGrainPrimaryKey(typeof(V), this._indexName) + "_" + aftImgHash);
+                BucketT aftImgBucket = this.GetBucketGrain(aftImgHash);
                 var befTask = befImgBucket.DirectApplyIndexUpdate(g, new MemberUpdateOverridenOperation(iUpdate.Value, IndexOperationType.Delete).AsImmutable<IMemberUpdate>(), isUniqueIndex, idxMetaData);
                 var aftTask = aftImgBucket.DirectApplyIndexUpdate(g, new MemberUpdateOverridenOperation(iUpdate.Value, IndexOperationType.Insert).AsImmutable<IMemberUpdate>(), isUniqueIndex, idxMetaData);
                 bool[] results = await Task.WhenAll(befTask, aftTask);
@@ -141,13 +121,13 @@ namespace Orleans.Indexing
             else if (opType == IndexOperationType.Insert)
             {
                 int aftImgHash = GetBucketIndexFromHashCode(update.GetAfterImage());
-                BucketT aftImgBucket = GetGrain(IndexUtils.GetIndexGrainPrimaryKey(typeof(V), this._indexName) + "_" + aftImgHash);
+                BucketT aftImgBucket = this.GetBucketGrain(aftImgHash);
                 return await aftImgBucket.DirectApplyIndexUpdate(g, iUpdate, isUniqueIndex, idxMetaData);
             }
             else if (opType == IndexOperationType.Delete)
             {
                 int befImgHash = GetBucketIndexFromHashCode(update.GetBeforeImage());
-                BucketT befImgBucket = GetGrain(IndexUtils.GetIndexGrainPrimaryKey(typeof(V), this._indexName) + "_" + befImgHash);
+                BucketT befImgBucket = this.GetBucketGrain(befImgHash);
                 return await befImgBucket.DirectApplyIndexUpdate(g, iUpdate, isUniqueIndex, idxMetaData);
             }
             return true;
@@ -157,7 +137,8 @@ namespace Orleans.Indexing
         {
             logger.Trace($"Streamed index lookup called for key = {key}");
 
-            BucketT targetBucket = GetGrain(IndexUtils.GetIndexGrainPrimaryKey(typeof(V), this._indexName) + "_" + GetBucketIndexFromHashCode(key));
+            var keyHash = GetBucketIndexFromHashCode(key);
+            BucketT targetBucket = this.GetBucketGrain(keyHash);
             return targetBucket.Lookup(result, key);
         }
 
@@ -180,8 +161,13 @@ namespace Orleans.Indexing
 
         public Task<bool> IsAvailable() => Task.FromResult(true);
 
-        private int GetBucketIndexFromHashCode<T>(T img) 
-            => this.maxHashBuckets > 0 ? img.GetHashCode() % this.maxHashBuckets : img.GetHashCode();
+        private int GetBucketIndexFromHashCode<T>(T img)
+        {
+            // HashIndexSingleBucketEntry uses a HashSet of GrainReference, which has its own GetHashCode,
+            // so hash flooding with string key values is not an issue and we can use a non-randomized hashcode.
+            var hashCode = img.GetInvariantHashCode();
+            return this.maxHashBuckets > 0 ? hashCode % this.maxHashBuckets : hashCode;
+        }
 
         Task IIndexInterface.Lookup(IOrleansQueryResultStream<IIndexableGrain> result, object key) => Lookup(result.Cast<V>(), (K)key);
 
@@ -189,7 +175,8 @@ namespace Orleans.Indexing
         {
             logger.Trace($"Eager index lookup called for key = {key}");
 
-            BucketT targetBucket = GetGrain(IndexUtils.GetIndexGrainPrimaryKey(typeof(V), this._indexName) + "_" + GetBucketIndexFromHashCode(key));
+            var keyHash = GetBucketIndexFromHashCode(key);
+            BucketT targetBucket = this.GetBucketGrain(keyHash);
             return targetBucket.Lookup(key);
         }
 

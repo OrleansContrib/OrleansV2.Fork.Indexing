@@ -1,8 +1,10 @@
 using Orleans.CodeGeneration;
 using Orleans.Indexing;
+using Orleans.Indexing.Facet;
 using System.Runtime.CompilerServices;
 
-[assembly: GenerateSerializer(typeof(FaultTolerantIndexableState<>))]
+[assembly: GenerateSerializer(typeof(IndexedGrainStateWrapper<>))]
+[assembly: GenerateSerializer(typeof(FaultTolerantIndexedGrainStateWrapper<>))]
 [assembly: GenerateSerializer(typeof(IndexWorkflowQueueState))]
 [assembly: GenerateSerializer(typeof(IndexWorkflowQueueEntry))]
 [assembly: GenerateSerializer(typeof(IndexWorkflowRecord))]
@@ -10,7 +12,7 @@ using System.Runtime.CompilerServices;
 [assembly: GenerateSerializer(typeof(MemberUpdate))]
 [assembly: GenerateSerializer(typeof(MemberUpdateOverridenOperation))]
 [assembly: GenerateSerializer(typeof(MemberUpdateReverseTentative))]
-[assembly: GenerateSerializer(typeof(MemberUpdateTentative))]
+[assembly: GenerateSerializer(typeof(MemberUpdateWithMode))]
 [assembly: GenerateSerializer(typeof(IndexMetaData))]
 [assembly: GenerateSerializer(typeof(IndexUpdateGenerator))]
 [assembly: GenerateSerializer(typeof(ActiveHashIndexPartitionedPerKey<,>))]

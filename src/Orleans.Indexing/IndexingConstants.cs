@@ -1,3 +1,5 @@
+using Orleans.Indexing.Facet;
+
 namespace Orleans.Indexing
 {
     internal static class IndexingConstants
@@ -7,6 +9,7 @@ namespace Orleans.Indexing
         public const string INDEXING_WORKFLOWQUEUE_STORAGE_PROVIDER_NAME = "IndexingWorkflowQueueStorageProvider";
         public const string INDEXING_STREAM_PROVIDER_NAME = "IndexingStreamProvider";
         public const string INDEXING_OPTIONS_NAME = nameof(IndexingOptions);
+        public static string UserStatePrefix = nameof(IndexedGrainStateWrapper<object>.UserState) + ".";
 
         public const int INDEX_WORKFLOW_QUEUE_HANDLER_GRAIN_SERVICE_TYPE_CODE = 251;
         public const int INDEX_WORKFLOW_QUEUE_GRAIN_SERVICE_TYPE_CODE = 252;

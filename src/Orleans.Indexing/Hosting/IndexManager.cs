@@ -38,6 +38,8 @@ namespace Orleans.Indexing
             this.ApplicationPartManager = apm;
             this.LoggerFactory = lf;
             this.CachedTypeResolver = typeResolver;
+
+            this.IndexingOptions = this.ServiceProvider.GetOptionsByName<IndexingOptions>(IndexingConstants.INDEXING_OPTIONS_NAME);
         }
 
         public void Participate(IClusterClientLifecycle lifecycle)
@@ -59,7 +61,9 @@ namespace Orleans.Indexing
             }
         }
 
-        public IndexingOptions IndexingOptions => this.ServiceProvider.GetOptionsByName<IndexingOptions>(IndexingConstants.INDEXING_OPTIONS_NAME);
+        public IndexingOptions IndexingOptions { get; }
+
+        internal int NumWorkflowQueuesPerInterface => this.IndexingOptions.NumWorkflowQueuesPerInterface;
 
         /// <summary>
         /// This method is called at the begining of the process of uninitializing runtime services.

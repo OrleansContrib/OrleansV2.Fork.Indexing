@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Orleans.Indexing
@@ -19,9 +19,9 @@ namespace Orleans.Indexing
         /// <summary>
         /// The list of updated values to all updated indexed properties of the Grain
         /// </summary>
-        internal IDictionary<string, IMemberUpdate> MemberUpdates { get; }
+        internal IReadOnlyDictionary<string, IMemberUpdate> MemberUpdates { get; }
 
-        internal IndexWorkflowRecord(Guid workflowId, IIndexableGrain grain, IDictionary<string, IMemberUpdate> memberUpdates)
+        internal IndexWorkflowRecord(Guid workflowId, IIndexableGrain grain, IReadOnlyDictionary<string, IMemberUpdate> memberUpdates)
         {
             Grain = grain;
             WorkflowId = workflowId;
@@ -31,7 +31,7 @@ namespace Orleans.Indexing
         public override bool Equals(object other)
             => other is IndexWorkflowRecord otherW ? WorkflowId.Equals(otherW.WorkflowId) : false;
 
-        public override int GetHashCode() => WorkflowId.GetHashCode();
+        public override int GetHashCode() => WorkflowId.GetInvariantHashCode();
 
         public override string ToString() => string.Format("<Grain: {0}, WorkflowId: {1}>", Grain, WorkflowId);
     }

@@ -14,8 +14,9 @@ namespace Orleans.Indexing
         /// <param name="state">the index bucket to be updated</param>
         /// <param name="isUniqueIndex">a flag to indicate whether the hash-index has a uniqueness constraint</param>
         /// <param name="idxMetaData">the index metadata</param>
-        internal static bool UpdateBucket<K, V>(V updatedGrain, IMemberUpdate iUpdate, HashIndexBucketState<K, V> state, bool isUniqueIndex, IndexMetaData idxMetaData) where V : IIndexableGrain
-            => UpdateBucket(updatedGrain, iUpdate, state, isUniqueIndex, idxMetaData, out K befImg, out HashIndexSingleBucketEntry<V> befEntry, out bool fixIndexUnavailableOnDelete);
+        internal static bool UpdateBucketState<K, V>(V updatedGrain, IMemberUpdate iUpdate, HashIndexBucketState<K, V> state, bool isUniqueIndex,
+                                                     IndexMetaData idxMetaData) where V : IIndexableGrain
+            => UpdateBucketState(updatedGrain, iUpdate, state, isUniqueIndex, idxMetaData, out K befImg, out HashIndexSingleBucketEntry<V> _, out bool _);
 
         /// <summary>
         /// This method contains the common functionality for updating the hash-index bucket.
@@ -31,107 +32,34 @@ namespace Orleans.Indexing
         /// <param name="befEntry">output parameter: the index entry containing the before-image</param>
         /// <param name="fixIndexUnavailableOnDelete">output parameter: this variable determines whether
         ///             the index was still unavailable when we received a delete operation</param>
-        internal static bool UpdateBucket<K, V>(V updatedGrain, IMemberUpdate update, HashIndexBucketState<K, V> state, bool isUniqueIndex, IndexMetaData idxMetaData, out K befImg,
-                                                out HashIndexSingleBucketEntry<V> befEntry, out bool fixIndexUnavailableOnDelete) where V : IIndexableGrain
+        internal static bool UpdateBucketState<K, V>(V updatedGrain, IMemberUpdate update, HashIndexBucketState<K, V> state, bool isUniqueIndex,
+                                                     IndexMetaData idxMetaData, out K befImg, out HashIndexSingleBucketEntry<V> befEntry,
+                                                     out bool fixIndexUnavailableOnDelete) where V : IIndexableGrain
         {
             fixIndexUnavailableOnDelete = false;
             befImg = default(K);
             befEntry = null;
 
-            bool isTentativeUpdate = isUniqueIndex && (update is MemberUpdateTentative);
-            IndexOperationType opType = update.OperationType;
+            var indexUpdateMode = update is MemberUpdateWithMode updateWithMode ? updateWithMode.UpdateMode : IndexUpdateMode.NonTentative;
+            var opType = update.OperationType;
             HashIndexSingleBucketEntry<V> aftEntry;
-            if (opType == IndexOperationType.Update)
+
+            // Insert is done for both IndexOperationType.Update and IndexOperationType.Update, so use a local function.
+            bool doInsert(K afterImage, out bool uniquenessViolation)
             {
-                befImg = (K)update.GetBeforeImage();
-                K aftImg = (K)update.GetAfterImage();
-                if (state.IndexMap.TryGetValue(befImg, out befEntry) && befEntry.Values.Contains(updatedGrain))
-                {   //Delete and Insert
-                    if (state.IndexMap.TryGetValue(aftImg, out aftEntry))
-                    {
-                        if (aftEntry.Values.Contains(updatedGrain))
-                        {
-                            if (isTentativeUpdate)
-                            {
-                                aftEntry.SetTentativeInsert();
-                            }
-                            else
-                            {
-                                aftEntry.ClearTentativeFlag();
-                                befEntry.Remove(updatedGrain, isTentativeUpdate, isUniqueIndex);
-                            }
-                        }
-                        else
-                        {
-                            if (isUniqueIndex && aftEntry.Values.Count > 0)
-                            {
-                                throw new UniquenessConstraintViolatedException(string.Format(
-                                        "The uniqueness property of index is violated after an update operation for before-image = {0}, after-image = {1} and grain = {2}",
-                                        befImg, aftImg, updatedGrain.GetPrimaryKey()));
-                            }
-                            befEntry.Remove(updatedGrain, isTentativeUpdate, isUniqueIndex);
-                            aftEntry.Add(updatedGrain, isTentativeUpdate, isUniqueIndex);
-                        }
-                    }
-                    else
-                    {
-                        aftEntry = new HashIndexSingleBucketEntry<V>();
-                        befEntry.Remove(updatedGrain, isTentativeUpdate, isUniqueIndex);
-                        aftEntry.Add(updatedGrain, isTentativeUpdate, isUniqueIndex);
-                        state.IndexMap.Add(aftImg, aftEntry);
-                    }
-                }
-                else
-                {
-                    if (idxMetaData.IsChainedBuckets)
-                        return false; //not found in this bucket
-                    //Insert
-                    if (state.IndexMap.TryGetValue(aftImg, out aftEntry))
-                    {
-                        if (!aftEntry.Values.Contains(updatedGrain))
-                        {
-                            if (isUniqueIndex && aftEntry.Values.Count > 0)
-                            {
-                                throw new UniquenessConstraintViolatedException(string.Format("The uniqueness property of index is violated after an update operation for (not found before-image = {0}), after-image = {1} and grain = {2}", befImg, aftImg, updatedGrain.GetPrimaryKey()));
-                            }
-                            aftEntry.Add(updatedGrain, isTentativeUpdate, isUniqueIndex);
-                        }
-                        else if (isTentativeUpdate)
-                        {
-                            aftEntry.SetTentativeInsert();
-                        }
-                        else
-                        {
-                            aftEntry.ClearTentativeFlag();
-                        }
-                    }
-                    else
-                    {
-                        if (idxMetaData.IsCreatingANewBucketNecessary(state.IndexMap.Count()))
-                        {
-                            return false;
-                        }
-                        aftEntry = new HashIndexSingleBucketEntry<V>();
-                        aftEntry.Add(updatedGrain, isTentativeUpdate, isUniqueIndex);
-                        state.IndexMap.Add(aftImg, aftEntry);
-                    }
-                }
-            }
-            else if (opType == IndexOperationType.Insert)
-            { // Insert
-                K aftImg = (K)update.GetAfterImage();
-                if (state.IndexMap.TryGetValue(aftImg, out aftEntry))
+                uniquenessViolation = false;
+                if (state.IndexMap.TryGetValue(afterImage, out aftEntry))
                 {
                     if (!aftEntry.Values.Contains(updatedGrain))
                     {
                         if (isUniqueIndex && aftEntry.Values.Count > 0)
                         {
-                            throw new UniquenessConstraintViolatedException(string.Format("The uniqueness property of index is violated after an insert operation for after-image = {0} and grain = {1}",
-                                                                                           aftImg, updatedGrain.GetPrimaryKey()));
+                            uniquenessViolation = true;
+                            return false;
                         }
-                        aftEntry.Add(updatedGrain, isTentativeUpdate, isUniqueIndex);
+                        aftEntry.Add(updatedGrain, indexUpdateMode, isUniqueIndex);
                     }
-                    else if (isTentativeUpdate)
+                    else if (indexUpdateMode == IndexUpdateMode.Tentative)
                     {
                         aftEntry.SetTentativeInsert();
                     }
@@ -139,25 +67,98 @@ namespace Orleans.Indexing
                     {
                         aftEntry.ClearTentativeFlag();
                     }
+                    return true;
+                }
+
+                // Add a new entry
+                if (idxMetaData.IsCreatingANewBucketNecessary(state.IndexMap.Count))
+                {
+                    return false;  // the bucket is full
+                }
+
+                aftEntry = new HashIndexSingleBucketEntry<V>();
+                aftEntry.Add(updatedGrain, indexUpdateMode, isUniqueIndex);
+                state.IndexMap.Add(afterImage, aftEntry);
+                return true;
+            }
+
+            if (opType == IndexOperationType.Update)
+            {
+                befImg = (K)update.GetBeforeImage();
+                K aftImg = (K)update.GetAfterImage();
+                if (state.IndexMap.TryGetValue(befImg, out befEntry) && befEntry.Values.Contains(updatedGrain))
+                {
+                    // Delete and Insert
+                    if (state.IndexMap.TryGetValue(aftImg, out aftEntry))
+                    {
+                        if (aftEntry.Values.Contains(updatedGrain))
+                        {
+                            if (indexUpdateMode == IndexUpdateMode.Tentative)
+                            {
+                                aftEntry.SetTentativeInsert();
+                            }
+                            else
+                            {
+                                aftEntry.ClearTentativeFlag();
+                                befEntry.Remove(updatedGrain, indexUpdateMode, isUniqueIndex);
+                            }
+                        }
+                        else
+                        {
+                            if (isUniqueIndex && aftEntry.Values.Count > 0)
+                            {
+                                throw new UniquenessConstraintViolatedException(
+                                        $"The uniqueness property of index {idxMetaData.IndexName} is would be violated for an update operation" +
+                                        $" for before-image = {befImg}, after-image = {aftImg} and grain = {updatedGrain.GetPrimaryKey()}");
+                            }
+                            befEntry.Remove(updatedGrain, indexUpdateMode, isUniqueIndex);
+                            aftEntry.Add(updatedGrain, indexUpdateMode, isUniqueIndex);
+                        }
+                    }
+                    else
+                    {
+                        aftEntry = new HashIndexSingleBucketEntry<V>();
+                        befEntry.Remove(updatedGrain, indexUpdateMode, isUniqueIndex);
+                        aftEntry.Add(updatedGrain, indexUpdateMode, isUniqueIndex);
+                        state.IndexMap.Add(aftImg, aftEntry);
+                    }
                 }
                 else
                 {
-                    if (idxMetaData.IsCreatingANewBucketNecessary(state.IndexMap.Count()))
+                    // Insert only
+                    if (idxMetaData.IsChainedBuckets)
                     {
-                        return false;  //the bucket is full
+                        return false; // not found in this bucket
                     }
-                    aftEntry = new HashIndexSingleBucketEntry<V>();
-                    aftEntry.Add(updatedGrain, isTentativeUpdate, isUniqueIndex);
-                    state.IndexMap.Add(aftImg, aftEntry);
+
+                    if (!doInsert(aftImg, out bool uniquenessViolation))
+                    {
+                        return uniquenessViolation
+                            ? throw new UniquenessConstraintViolatedException(
+                                    $"The uniqueness property of index {idxMetaData.IndexName} would be violated for an update operation" +
+                                    $" for (not found before-image = {befImg}), after-image = {aftImg} and grain = {updatedGrain.GetPrimaryKey()}")
+                            : false;
+                    }
+                }
+            }
+            else if (opType == IndexOperationType.Insert)
+            {
+                if (!doInsert((K)update.GetAfterImage(), out bool uniquenessViolation))
+                {
+                    return uniquenessViolation
+                        ? throw new UniquenessConstraintViolatedException(
+                                $"The uniqueness property of index {idxMetaData.IndexName} would be violated for an insert operation" +
+                                $" for after-image = {(K)update.GetAfterImage()} and grain = {updatedGrain.GetPrimaryKey()}")
+                        : false;
                 }
             }
             else if (opType == IndexOperationType.Delete)
-            { // Delete
+            {
                 befImg = (K)update.GetBeforeImage();
 
                 if (state.IndexMap.TryGetValue(befImg, out befEntry) && befEntry.Values.Contains(updatedGrain))
                 {
-                    befEntry.Remove(updatedGrain, isTentativeUpdate, isUniqueIndex);
+                    befEntry.Remove(updatedGrain, indexUpdateMode, isUniqueIndex);
                     if (state.IndexStatus != IndexStatus.Available)
                     {
                         fixIndexUnavailableOnDelete = true;

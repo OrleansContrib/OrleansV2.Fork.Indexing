@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -46,7 +46,7 @@ namespace Orleans.Indexing.Tests
         public void SetNullValuesTest()
         {
             var state = new NullValuesTestState();
-            IndexUtils.SetNullValues(state);
+            IndexUtils.SetNullValues(state, IndexRegistry.EmptyPropertyNullValues);
             Assert.Equal(int.Parse(IntNullValue), state.IntVal);
             Assert.Null(state.NIntVal);
             Assert.Equal(uint.Parse(UIntNullValue), state.UintVal);
@@ -67,7 +67,7 @@ namespace Orleans.Indexing.Tests
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_Validate_Indexes()
         {
-            await IndexValidator.Validate(typeof(IPlayer1Grain).Assembly);
+            await IndexValidator.Validate(typeof(BasicFunctionalityTests).Assembly);
         }
     }
 }

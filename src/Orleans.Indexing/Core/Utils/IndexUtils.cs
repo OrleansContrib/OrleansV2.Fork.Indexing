@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
+using Orleans.Indexing.Facet;
+using Microsoft.Extensions.DependencyInjection;
+using Orleans.Storage;
 
 namespace Orleans.Indexing
 {
@@ -55,14 +59,12 @@ namespace Orleans.Indexing
         public static string PropertyNameToIndexName(string propertyName)
             => "__" + propertyName;
 
-        public static System.Threading.Tasks.Task<bool> WriteIndexes<TGrainState>(TGrainState grainState, params object[] indexedProperties)
-        {
-            return System.Threading.Tasks.Task.FromResult(true);
-        }
-
         // The ILoggerFactory implementation creates the category without generic type arguments.
         internal static ILogger CreateLoggerWithFullCategoryName<T>(this ILoggerFactory lf) where T: class
-            => lf.CreateLogger(GetFullTypeName(typeof(T), expandArgNames:true));
+            => lf.CreateLoggerWithFullCategoryName(typeof(T));
+
+        internal static ILogger CreateLoggerWithFullCategoryName(this ILoggerFactory lf, Type t)
+            => lf.CreateLogger(GetFullTypeName(t, expandArgNames: true));
 
         internal static string GetFullTypeName(Type type, bool expandArgNames = false)
         {
@@ -75,21 +77,19 @@ namespace Orleans.Indexing
                 : $"{name.Substring(0, name.IndexOf("`"))}<{string.Join(",", genericArgs.Select(arg => GetFullTypeName(arg, true)))}>";
         }
 
-        internal static bool IsNullable(this Type type)
-        {
-            return !type.IsValueType || Nullable.GetUnderlyingType(type) != null;
-        }
+        internal static bool IsNullable(this Type type) => !type.IsValueType || Nullable.GetUnderlyingType(type) != null;
 
-        internal static void SetNullValues<TObjectProperties>(TObjectProperties state)
+        internal static TGrainState SetNullValues<TGrainState>(TGrainState state, IReadOnlyDictionary<string, object> propertyNullValues)
         {
-            foreach (PropertyInfo propInfo in typeof(TObjectProperties).GetProperties())
+            foreach (var propInfo in typeof(TGrainState).GetProperties())
             {
                 var nullValue = GetNullValue(propInfo);
-                if (nullValue != null)
+                if (nullValue != null || propertyNullValues.TryGetValue(propInfo.Name, out nullValue))
                 {
                     propInfo.SetValue(state, nullValue);
                 }
             }
+            return state;
         }
 
         internal static object GetNullValue(PropertyInfo propInfo)
@@ -111,5 +111,153 @@ namespace Orleans.Indexing
                 ? DateTime.ParseExact(value, "o", CultureInfo.InvariantCulture)
                 : Convert.ChangeType(value, propertyType, CultureInfo.InvariantCulture);
         }
+
+        internal static void ForEach<T>(this IEnumerable<T> enumerable, Action<T> mutator)
+        {
+            // Simple but allows chaining
+            foreach (var item in enumerable)
+            {
+                mutator(item);
+            }
+        }
+
+        internal static TValue GetOrAdd<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key, Func<TValue> creatorFunc)
+        {
+            if (!dict.TryGetValue(key, out TValue value))
+            {
+                value = creatorFunc();
+                dict[key] = value;
+            }
+            return value;
+        }
+
+        internal static TValue GetOrAdd<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key) where TValue : new()
+            => GetOrAdd(dict, key, () => new TValue());
+
+
+        internal static TValue GetOrAdd<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key, TValue value) where TValue : new()
+            => GetOrAdd(dict, key, () => value);
+
+        internal static void Deconstruct<TKey, TValue>(this KeyValuePair<TKey, TValue> kvp, out TKey key, out TValue value)
+        {
+            key = kvp.Key;
+            value = kvp.Value;
+        }
+
+        internal static void AddRange<T>(this HashSet<T> set, IEnumerable<T> values)
+        {
+            foreach (var value in values)
+            {
+                set.Add(value);
+            }
+        }
+
+        internal static IEnumerable<T> Coalesce<T>(this IEnumerable<T> items)
+        {
+            return items == null
+                ? Enumerable.Empty<T>()
+                : from item in items where item != null select item;
+        }
+
+        internal static int GetInvariantHashCode(this object item)
+            => (item is string stringItem) ? GetInvariantStringHashCode(stringItem) : item.GetHashCode();
+
+        internal static int GetInvariantStringHashCode(this string item)
+        {
+            // NetCore randomizes string.GetHashCode() per-appdomain, to prevent hash flooding.
+            // Therefore it's important to verify for each call site that this isn't a concern.
+            // This is a non-unsafe/unchecked version of (internal) string.GetLegacyNonRandomizedHashCode().
+            unchecked
+            {
+                int hash1 = (5381 << 16) + 5381;
+                int hash2 = hash1;
+
+                for (var ii = 0; ii < item.Length; ii += 2)
+                {
+                    hash1 = ((hash1 << 5) + hash1) ^ item[ii];
+                    if (ii < item.Length - 1)
+                    {
+                        hash2 = ((hash2 << 5) + hash2) ^ item[ii + 1];
+                    }
+                }
+                return hash1 + (hash2 * 1566083941);
+            }
+        }
+
+        internal static ConsistencyScheme GetConsistencyScheme(this Type grainClassType)
+        {
+            ConsistencyScheme? scheme = null;
+
+            void setScheme(ConsistencyScheme currentScheme)
+                => scheme = scheme.HasValue && scheme.Value != currentScheme
+                                ? throw new IndexConfigurationException($"Grain type {grainClassType.Name} has a conflict between indexing schemes specified on facet ctor parameters")
+                                : currentScheme;
+
+            foreach (var ctor in grainClassType.GetConstructors())
+            {
+                var ctorHasFacet = false;
+                foreach (var attr in ctor.GetParameters().SelectMany(p => p.GetCustomAttributes<IndexedStateAttribute>()))
+                {
+                    ctorHasFacet = ctorHasFacet
+                        ? throw new IndexConfigurationException($"Grain type {grainClassType.Name}: a ctor cannot have two Indexing facet specifications")
+                        : true;
+                    switch (attr)
+                    {
+                        case IFaultTolerantWorkflowIndexedStateAttribute _:
+                            setScheme(ConsistencyScheme.FaultTolerantWorkflow);
+                            break;
+                        case INonFaultTolerantWorkflowIndexedStateAttribute _:
+                            setScheme(ConsistencyScheme.NonFaultTolerantWorkflow);
+                            break;
+//TODO                        case ITransactionalIndexedStateAttribute _:
+//                            setScheme(ConsistencyScheme.Transactional);
+//                            break;
+                        default:
+                            throw new IndexConfigurationException($"Grain type {grainClassType.Name} has an unknown Indexing Facet constructor attribute {attr.GetType().Name}");
+                    }
+                }
+            }
+
+            return scheme ?? throw new IndexConfigurationException($"Grain type {grainClassType.Name} has no Indexing Facet constructor argument specified");
+        }
+
+        internal static IGrainStorage GetGrainStorage(IServiceProvider services, string storageName)
+        {
+            var storageProvider = !string.IsNullOrEmpty(storageName)
+                ? services.GetServiceByName<IGrainStorage>(storageName)
+                : services.GetService<IGrainStorage>();
+            string failedProviderName() => string.IsNullOrEmpty(storageName) ? "default storage provider" : $"storage provider with the name {storageName}";
+            return storageProvider ?? throw new IndexConfigurationException($"No {failedProviderName()} was found while attempting to create index state storage.");
+        }
+
+        internal static bool IsIndexInterfaceType(this Type indexType)
+            => typeof(IIndexInterface).IsAssignableFrom(indexType);
+
+        internal static bool RequireIndexInterfaceType(this Type indexType)
+            => indexType.IsIndexInterfaceType() ? true : throw new ArgumentException($"Type {GetFullTypeName(indexType)} is not an index type", "indexType");
+
+        internal static bool IsPartitionedPerSiloIndex(this Type indexType)
+            => indexType.RequireIndexInterfaceType() && typeof(IActiveHashIndexPartitionedPerSilo).IsAssignableFrom(indexType);
+
+        internal static bool IsTotalIndex(this Type indexType)
+            => indexType.RequireIndexInterfaceType() && typeof(ITotalIndex).IsAssignableFrom(indexType); // TODO Possible addition for Transactional
+
+        internal static bool IsDirectStorageManagedIndex(this Type indexType)
+            => indexType.RequireIndexInterfaceType() && typeof(IDirectStorageManagedIndex).IsAssignableFrom(indexType);
+
+        internal static bool IsActiveIndex(this Type indexType)
+            => !indexType.IsTotalIndex() && !indexType.IsDirectStorageManagedIndex();
+
+        internal static bool IsTotalIndex(this IIndexInterface itf)
+            => itf is ITotalIndex;     // TODO Possible addition for Transactional
+
+        internal static bool IsDirectStorageManagedIndex(this IIndexInterface itf)
+            => itf is IDirectStorageManagedIndex;
+
+        internal static bool IsActiveIndex(this IIndexInterface itf)
+            => !itf.IsTotalIndex() && !itf.IsDirectStorageManagedIndex();
+
+        internal static bool IsActivationChange(this IndexUpdateReason updateReason)
+            => updateReason == IndexUpdateReason.OnActivate || updateReason == IndexUpdateReason.OnDeactivate;
     }
 }

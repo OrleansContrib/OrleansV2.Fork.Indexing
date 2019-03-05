@@ -23,8 +23,8 @@ namespace Orleans.Indexing
         {
             if (_base == null)
             {
-                GrainReference oldParentGrainServiceRef = oldParentGrainService.AsWeaklyTypedReference();
-                string[] parts = oldParentGrainServiceRef.GetPrimaryKeyString().Split('-');
+                var oldParentGrainServiceRef = oldParentGrainService.AsWeaklyTypedReference();
+                var parts = oldParentGrainServiceRef.GetPrimaryKeyString().Split('-');
                 if (parts.Length != 2)
                 {
                     throw new WorkflowIndexException("The primary key for IndexWorkflowQueueGrainService should only contain a single special character '-', while it contains multiple." +
@@ -36,7 +36,7 @@ namespace Orleans.Indexing
 
                 _base = new IndexWorkflowQueueHandlerBase(this.SiloIndexManager, grainInterfaceType, queueSequenceNumber,
                                                           oldParentGrainServiceRef.GrainServiceSiloAddress,
-                                                          true /*otherwise it shouldn't have reached here!*/,
+                                                          isDefinedAsFaultTolerantGrain: true /*otherwise it shouldn't have reached here!*/,
                                                           () => this.AsWeaklyTypedReference());
             }
             return Task.CompletedTask;

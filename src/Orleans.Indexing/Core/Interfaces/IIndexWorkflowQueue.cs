@@ -1,4 +1,4 @@
-﻿using Orleans.Concurrency;
+using Orleans.Concurrency;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
@@ -34,11 +34,11 @@ namespace Orleans.Indexing
         Task<Immutable<IndexWorkflowRecordNode>> GiveMoreWorkflowsOrSetAsIdle();
 
         /// <summary>
-        /// Returns the list of work-flow records that are not completely processed
+        /// Returns the list of workflow records that are not completely processed
         /// and their ID is among the IDs in activeWorkflowsSet
         /// </summary>
-        /// <param name="activeWorkflowsSet">the set of requested work-flow IDs</param>
-        /// <returns>the work-flow records that their ID match one in the set of input</returns>
+        /// <param name="activeWorkflowsSet">the set of requested workflow IDs</param>
+        /// <returns>the workflow records that their ID match one in the set of input</returns>
         Task<Immutable<List<IndexWorkflowRecord>>> GetRemainingWorkflowsIn(HashSet<Guid> activeWorkflowsSet);
 
         /// <summary>

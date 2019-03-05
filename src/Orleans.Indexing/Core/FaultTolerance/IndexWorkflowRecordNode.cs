@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -49,7 +49,7 @@ namespace Orleans.Indexing
         public IndexWorkflowRecordNode AppendPunctuation(ref IndexWorkflowRecordNode tail)
         {
             // We never append a punctuation to an existing punctuation; it should never be requested.
-            if (IsPunctuation()) throw new WorkflowIndexException("Adding a punctuation to a work-flow queue that already has a punctuation is not allowed.");
+            if (IsPunctuation) throw new WorkflowIndexException("Adding a punctuation to a workflow queue that already has a punctuation is not allowed.");
 
             var punctuation = new IndexWorkflowRecordNode();
             Append(punctuation, ref tail);
@@ -75,7 +75,7 @@ namespace Orleans.Indexing
             Prev = null;
         }
 
-        internal bool IsPunctuation() => WorkflowRecord == null;
+        internal bool IsPunctuation => WorkflowRecord == null;
 
         public override string ToString()
         {
@@ -85,7 +85,7 @@ namespace Orleans.Indexing
             do
             {
                 ++count;
-                res.Append(curr.IsPunctuation() ? "::Punc::" : curr.WorkflowRecord.ToString()).Append(",\n");
+                res.Append(curr.IsPunctuation ? "::Punc::" : curr.WorkflowRecord.ToString()).Append(",\n");
                 curr = curr.Next;
             } while (curr != null);
             res.Append("Number of elements: ").Append(count);
@@ -100,7 +100,7 @@ namespace Orleans.Indexing
             do
             {
                 ++count;
-                res.Append(curr.IsPunctuation() ? "::Punc::" : curr.WorkflowRecord.ToString()).Append(",\n");
+                res.Append(curr.IsPunctuation ? "::Punc::" : curr.WorkflowRecord.ToString()).Append(",\n");
                 curr = curr.Prev;
             } while (curr != null);
             res.Append("Number of elements: ").Append(count);

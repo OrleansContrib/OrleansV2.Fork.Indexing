@@ -47,8 +47,8 @@ namespace Orleans.Indexing
         }
 
 
-        private static GrainReference GetAHashIndexPartitionedPerSiloGrainReference(SiloIndexManager siloIndexManager, string indexName, Type iGrainType, SiloAddress siloAddress)
+        private static GrainReference GetAHashIndexPartitionedPerSiloGrainReference(SiloIndexManager siloIndexManager, string indexName, Type grainInterfaceType, SiloAddress siloAddress)
             => siloIndexManager.MakeGrainServiceGrainReference(IndexingConstants.HASH_INDEX_PARTITIONED_PER_SILO_BUCKET_GRAIN_SERVICE_TYPE_CODE,
-                                                               IndexUtils.GetIndexGrainPrimaryKey(iGrainType, indexName), siloAddress);
+                                                               IndexUtils.GetIndexGrainPrimaryKey(grainInterfaceType, indexName), siloAddress);
     }
 }

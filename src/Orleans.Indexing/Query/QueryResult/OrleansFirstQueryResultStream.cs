@@ -34,9 +34,8 @@ namespace Orleans.Indexing
 
         public override async Task OnNextBatchAsync(IEnumerable<TIGrain> batch, StreamSequenceToken token = null)
         {
-            if (batch.Count() == 0) return;
-            await this._stream.OnNextAsync(batch.First(), token);
-            await this._stream.OnCompletedAsync();
+            var item = batch.FirstOrDefault();
+            await (item != null ? this.OnNextAsync(item) : Task.CompletedTask);
         }
     }
 }

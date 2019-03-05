@@ -33,6 +33,7 @@ namespace Orleans.Indexing.Tests
         protected static IndexingOptions ConfigureBasicOptions(IndexingOptions indexingOptions)
         {
             indexingOptions.MaxHashBuckets = 42;
+            indexingOptions.NumWorkflowQueuesPerInterface = Math.Min(4, Environment.ProcessorCount); // Debugging startup is slow due to multiple GrainServices if this is high
             return indexingOptions; // allow chaining
         }
     }

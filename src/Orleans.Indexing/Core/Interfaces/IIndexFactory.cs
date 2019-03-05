@@ -62,8 +62,8 @@ namespace Orleans.Indexing
         /// Gets an IndexInterface given its name and grain interface type
         /// </summary>
         /// <param name="indexName">the name of the index, which is the identifier of the index</param>
-        /// <param name="iGrainType">the grain interface type that is being indexed</param>
+        /// <param name="grainInterfaceType">the grain interface type that is being indexed</param>
         /// <returns>the IndexInterface with the specified name on the given grain interface type</returns>
-        IIndexInterface GetIndex(Type iGrainType, string indexName);
+        IIndexInterface GetIndex(Type grainInterfaceType, string indexName);
     }
 }

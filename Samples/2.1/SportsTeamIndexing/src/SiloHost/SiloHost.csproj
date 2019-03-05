@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <RuntimeIdentifiers>win</RuntimeIdentifiers>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="2.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SportsTeamIndexing.Grains\SportsTeamIndexing.Grains.csproj" />
+    <ProjectReference Include="..\SportsTeamIndexing.Interfaces\SportsTeamIndexing.Interfaces.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Orleans.Core">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Core.Abstractions">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Core.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Core.Legacy">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Core.Legacy.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Indexing">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Indexing.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Runtime">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Orleans.Runtime.Abstractions">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\Orleans.Runtime.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="OrleansProviders">
+      <HintPath>..\..\..\..\..\src\Orleans.Indexing\bin\Debug\netstandard2.0\OrleansProviders.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

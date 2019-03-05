@@ -840,51 +840,16 @@ namespace Orleans.Runtime
             providerRuntime.RegisterSystemTarget(target);
         }
 
-        private ISiloControl GetSiloControlReference(SiloAddress siloAddress)
-            => this.runtimeClient.InternalGrainFactory.GetSystemTarget<ISiloControl>(Constants.SiloControlId, siloAddress);
-
         public T GetGrainService<T>(GrainReference grainReference) where T: IGrainService
             => this.runtimeClient.InternalGrainFactory.GetSystemTarget<T>(grainReference.GrainId, grainReference.SystemTargetSilo);
-
-        private GrainReference MakeGrainReference(GrainId grainId, SiloAddress siloAddress)
-            => GrainReference.FromGrainId(grainId, this.runtimeClient.GrainReferenceRuntime, systemTargetSilo:siloAddress);
-
-        public async Task<IEnumerable<Tuple<GrainReference, string, int>>> GetClusterGrainActivations(SiloAddress[] siloAddresses)
-        {
-            // Convert from internal GrainId to GrainReference
-            var tasks = siloAddresses.Select(async siloAddress =>
-                {
-                    var statsList = await this.GetSiloControlReference(siloAddress).GetGrainStatistics();
-                    // This is a non-SystemTarget grain so siloAddress must be null
-                    return statsList.Select(stats => Tuple.Create(this.MakeGrainReference(stats.Item1, siloAddress:null), stats.Item2, stats.Item3));
-                }
-            );
-
-            var results = await Task.WhenAll(tasks);
-            return results.SelectMany(s => s);
-        }
 
         public IGrainTypeResolver GrainTypeResolver => this.runtimeClient.GrainTypeResolver;
 
         public GrainReference MakeGrainServiceGrainReference(int typeData, string systemGrainId, SiloAddress siloAddress)
-            => this.MakeGrainReference(GrainId.GetGrainServiceGrainId(typeData, systemGrainId), siloAddress);
-
-        public OutputGrainInterfaceType GetGrain<OutputGrainInterfaceType>(Guid grainPrimaryKey, Type grainInterfaceType)
-            where OutputGrainInterfaceType : IGrain
-            => this.grainFactory.GetGrain<OutputGrainInterfaceType>(grainPrimaryKey, grainInterfaceType);
-
-        public IGrain GetGrain(string grainPrimaryKey, Type grainInterfaceType, Type outputGrainInterfaceType)
-            => this.grainFactory.GetGrain(grainPrimaryKey, grainInterfaceType, outputGrainInterfaceType);
-
-        public static OutputGrainInterfaceType GetGrain<OutputGrainInterfaceType>(IGrainFactory grainFactory, Guid grainPrimaryKey, Type grainInterfaceType)
-            where OutputGrainInterfaceType : IGrain
-            => ((GrainFactory)grainFactory).GetGrain<OutputGrainInterfaceType>(grainPrimaryKey, grainInterfaceType);
+            => GrainReference.FromGrainId(GrainId.GetGrainServiceGrainId(typeData, systemGrainId), this.runtimeClient.GrainReferenceRuntime, systemTargetSilo:siloAddress);
 
         public static IGrain GetGrain(IGrainFactory grainFactory, string grainPrimaryKey, Type grainInterfaceType, Type outputGrainInterfaceType)
             => ((GrainFactory)grainFactory).GetGrain(grainPrimaryKey, grainInterfaceType, outputGrainInterfaceType);
-
-        public OutputGrainInterfaceType Cast<OutputGrainInterfaceType>(IAddressable grain) where OutputGrainInterfaceType : IGrain
-            => this.runtimeClient.InternalGrainFactory.Cast<OutputGrainInterfaceType>(grain);
 
         public IGrain Cast(IAddressable grain, Type outputGrainInterfaceType)
             => (IGrain)this.runtimeClient.InternalGrainFactory.Cast(grain, outputGrainInterfaceType);

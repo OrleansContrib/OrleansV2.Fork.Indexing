@@ -1,7 +1,8 @@
-﻿using HelloWorld.Interfaces;
+using HelloWorld.Interfaces;
 using Orleans;
 using Orleans.Runtime;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
@@ -23,11 +24,18 @@ namespace OrleansClient
 
         private static async Task<int> RunMainAsync()
         {
+            if (System.Diagnostics.Debugger.IsAttached)
+            {
+                // In case we have both Silo and Client as startup projects, give the Silo time to finish starting.
+                await Task.Delay(5000);
+            }
+
             try
             {
                 using (var client = await StartClientWithRetries())
                 {
                     await DoClientWork(client);
+                    Console.WriteLine("Press any key to exit");
                     Console.ReadKey();
                 }
 
@@ -36,6 +44,7 @@ namespace OrleansClient
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                Console.WriteLine("Press any key to exit");
                 Console.ReadKey();
                 return 1;
             }
@@ -46,7 +55,7 @@ namespace OrleansClient
             attempt = 0;
             IClusterClient client;
             client = new ClientBuilder()
-                .UseLocalhostClustering()
+                .UseLocalhostClustering(gatewayPort: 30001)
                 .Configure<ClusterOptions>(options =>
                 {
                     options.ClusterId = "dev";
@@ -62,6 +71,7 @@ namespace OrleansClient
 
         private static async Task<bool> RetryFilter(Exception exception)
         {
+            // Sometimes this is just an Orleans.Runtime.OrleansException, e.g.: Not connected to a gateway
             if (exception.GetType() != typeof(SiloUnavailableException))
             {
                 Console.WriteLine($"Cluster client failed to connect to cluster with unexpected error.  Exception: {exception}");
@@ -82,7 +92,22 @@ namespace OrleansClient
             // example of calling grains from the initialized client
             var friend = client.GetGrain<IHello>(0);
             var response = await friend.SayHello("Good morning, my friend!");
-            Console.WriteLine("\n\n{0}\n\n", response);
+            Console.WriteLine($"\n{response}\n\n");
+
+            var archive = client.GetGrain<IHelloArchive>(1);
+            response = await archive.SayHello("Good morning, my friend!");
+            Console.WriteLine($"{response}");
+            response = await archive.SayHello("Have a nice day!");
+            Console.WriteLine($"{response}\n");
+
+            var fetchedArchive = client.GetGrain<IHelloArchive>(1);
+            var greetings = (await fetchedArchive.GetGreetings()).Select(greeting => $"\"{greeting}\"").ToArray();
+            Console.WriteLine($"Your greetings were: {string.Join(", ", greetings)}");
+            if (greetings.Length > 2)
+            {
+                Console.WriteLine("  (The duplicate greetings illustrate state preservation on the silo across multiple runs of the client.)");
+            }
+            Console.WriteLine("\n");
         }
     }
 }
