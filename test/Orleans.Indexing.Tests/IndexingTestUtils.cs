@@ -3,6 +3,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Orleans.Indexing.Tests.MultiInterface;
+using Orleans.Indexing.Facet;
+using System.Reflection;
 
 namespace Orleans.Indexing.Tests
 {
@@ -45,22 +47,22 @@ namespace Orleans.Indexing.Tests
             return observedCount;
         }
 
-        internal static async Task SetPropertyAndWriteStateAsync(Action setterAction, Func<Task> writeStateFunc, Func<Task>readStateFunc, bool retry)
+        internal static async Task SetPropertyAndWriteStateAsync<TGrainState>(Action<TGrainState> setterAction, IIndexedState<TGrainState> indexedState, bool retry)
+            where TGrainState: class, new()
         {
             const int MaxRetries = 10;
             int retries = 0;
             while (true)
             {
-                setterAction();
                 try
                 {
-                    await writeStateFunc();
+                    await indexedState.PerformUpdate(setterAction);
                     return;
                 }
                 catch (Exception) when (retry && retries < MaxRetries)
                 {
                     ++retries;
-                    await readStateFunc();
+                    await indexedState.PerformRead();
                 }
             }
         }
@@ -68,6 +70,14 @@ namespace Orleans.Indexing.Tests
         private static IOrleansQueryable<TIGrain, TProperties> QueryActiveGrains<TIGrain, TProperties>(IndexingTestRunnerBase runner)
             where TIGrain : IIndexableGrain
             => runner.IndexFactory.GetActiveGrains<TIGrain, TProperties>();
+
+        internal static void ShallowCopyFrom(this object dest, object src)
+        {
+            foreach (var propInfo in src.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                propInfo.SetValue(dest, propInfo.GetValue(src, null));
+            }
+        }
 
         #region PlayerGrain
 
@@ -78,9 +88,20 @@ namespace Orleans.Indexing.Tests
                             from item in QueryActiveGrains<TIGrain, TProperties>(runner) where item.Location == queryValue select item,
                             entry => entry.GetLocation());
 
+        internal static Tuple<IOrleansQueryable<TIGrain, TProperties>, Func<TIGrain, Task<string>>> QueryByPlayerLocationTxn<TIGrain, TProperties>(
+                        this IndexingTestRunnerBase runner, string queryValue)
+            where TIGrain : IPlayerGrainTransactional, IIndexableGrain where TProperties : IPlayerProperties
+            => Tuple.Create<IOrleansQueryable<TIGrain, TProperties>, Func<TIGrain, Task<string>>>(
+                            from item in QueryActiveGrains<TIGrain, TProperties>(runner) where item.Location == queryValue select item,
+                            entry => entry.GetLocation());
+
         internal static Task<int> GetPlayerLocationCount<TIGrain, TProperties>(this IndexingTestRunnerBase runner, string location, int delayInMilliseconds = 0)
             where TIGrain : IPlayerGrain, IIndexableGrain where TProperties : IPlayerProperties
             => runner.CountItemsStreamingIn((r, v) => r.QueryByPlayerLocation<TIGrain, TProperties>(v), nameof(IPlayerProperties.Location), location, delayInMilliseconds);
+
+        internal static Task<int> GetPlayerLocationCountTxn<TIGrain, TProperties>(this IndexingTestRunnerBase runner, string location, int delayInMilliseconds = 0)
+            where TIGrain : IPlayerGrainTransactional, IIndexableGrain where TProperties : IPlayerProperties
+            => runner.CountItemsStreamingIn((r, v) => r.QueryByPlayerLocationTxn<TIGrain, TProperties>(v), nameof(IPlayerProperties.Location), location, delayInMilliseconds);
 
         #endregion PlayerGrain
 

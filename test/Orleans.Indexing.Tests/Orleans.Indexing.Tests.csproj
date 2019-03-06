@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Grains\Players\IPlayer1GrainTransactional.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Orleans.Core.Abstractions\Orleans.Core.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Orleans.Core\Orleans.Core.csproj" />
     <ProjectReference Include="..\..\src\Orleans.Indexing\Orleans.Indexing.csproj" />

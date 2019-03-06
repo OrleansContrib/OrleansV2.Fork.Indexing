@@ -45,6 +45,36 @@ namespace Orleans.Indexing.Tests
         }
 
         /// <summary>
+        /// Tests basic functionality of Transactional HashIndexSingleBucket
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing")]
+        public async Task Test_Indexing_IndexLookup1_Txn()
+        {
+            var p1 = base.GetGrain<IPlayer1GrainTransactional>(1);
+            await p1.SetLocation(ITC.Seattle);
+
+            var p2 = base.GetGrain<IPlayer1GrainTransactional>(2);
+            var p3 = base.GetGrain<IPlayer1GrainTransactional>(3);
+
+            await p2.SetLocation(ITC.Seattle);
+            await p3.SetLocation(ITC.SanFrancisco);
+
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer1GrainTransactional>(ITC.LocationProperty);
+
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<IPlayer1GrainTransactional, Player1PropertiesNonFaultTolerant>(location);
+
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+
+            await p2.Deactivate();
+            Thread.Sleep(1000);
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));   // Transactional indexes are always Total, so the count remains 2
+
+            p2 = base.GetGrain<IPlayer1GrainTransactional>(2);
+            Assert.Equal(ITC.Seattle, await p2.GetLocation());
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+        }
+
+        /// <summary>
         /// Tests basic functionality of ActiveHashIndexPartitionedPerSiloImpl with 1 Silo
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]

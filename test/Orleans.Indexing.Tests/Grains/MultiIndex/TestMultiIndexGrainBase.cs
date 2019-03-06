@@ -40,7 +40,10 @@ namespace Orleans.Indexing.Tests
             Assert.True(this.IsUniqueIntIndexed || this.IsUniqueStringIndexed || this.IsNonUniqueIntIndexed || this.IsNonUniqueStringIndexed);
         }
 
-        internal async Task SetProperty(Action setterAction, bool retry)
-            => await IndexingTestUtils.SetPropertyAndWriteStateAsync(setterAction, this.IndexedState.WriteAsync, this.IndexedState.ReadAsync, retry);
+        internal Task<TResult> GetProperty<TResult>(Func<TGrainState, TResult> readFunction)
+            => this.IndexedState.PerformRead(readFunction);
+
+        internal Task SetProperty(Action<TGrainState> setterAction, bool retry)
+            => IndexingTestUtils.SetPropertyAndWriteStateAsync(setterAction, this.IndexedState, retry);
     }
 }

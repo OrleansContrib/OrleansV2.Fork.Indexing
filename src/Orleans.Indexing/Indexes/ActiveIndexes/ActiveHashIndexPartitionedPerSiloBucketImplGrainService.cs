@@ -32,7 +32,7 @@ namespace Orleans.Indexing
         public ActiveHashIndexPartitionedPerSiloBucketImplGrainService(SiloIndexManager siloIndexManager, string parentIndexName, GrainReference grainReference)
             : base(grainReference.GrainIdentity, siloIndexManager.Silo, siloIndexManager.LoggerFactory)
         {
-            state = new HashIndexBucketState<K, V>
+            this.state = new HashIndexBucketState<K, V>
             {
                 IndexMap = new Dictionary<K, HashIndexSingleBucketEntry<V>>(),
                 IndexStatus = IndexStatus.Available

@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Orleans.Indexing.Facet;
 using Xunit;
 
 namespace Orleans.Indexing.Tests
@@ -45,20 +46,20 @@ namespace Orleans.Indexing.Tests
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public void SetNullValuesTest()
         {
-            var state = new NullValuesTestState();
-            IndexUtils.SetNullValues(state, IndexRegistry.EmptyPropertyNullValues);
-            Assert.Equal(int.Parse(IntNullValue), state.IntVal);
-            Assert.Null(state.NIntVal);
-            Assert.Equal(uint.Parse(UIntNullValue), state.UintVal);
-            Assert.Null(state.NUintVal);
-            Assert.Equal(float.Parse(FloatNullValue), state.FloatVal);
-            Assert.Null(state.NFloatVal);
-            Assert.Equal(double.Parse(DoubleNullValue), state.DoubleVal);
-            Assert.Null(state.NDoubleVal);
-            Assert.Equal(DateTime.Parse(DateTimeNullValue), state.DatetimeVal);
-            Assert.Null(state.NDatetimeVal);
+            var state = new IndexedGrainStateWrapper<NullValuesTestState>();
+            state.EnsureNullValues(IndexRegistry.EmptyPropertyNullValues);
+            Assert.Equal(int.Parse(IntNullValue), state.UserState.IntVal);
+            Assert.Null(state.UserState.NIntVal);
+            Assert.Equal(uint.Parse(UIntNullValue), state.UserState.UintVal);
+            Assert.Null(state.UserState.NUintVal);
+            Assert.Equal(float.Parse(FloatNullValue), state.UserState.FloatVal);
+            Assert.Null(state.UserState.NFloatVal);
+            Assert.Equal(double.Parse(DoubleNullValue), state.UserState.DoubleVal);
+            Assert.Null(state.UserState.NDoubleVal);
+            Assert.Equal(DateTime.Parse(DateTimeNullValue), state.UserState.DatetimeVal);
+            Assert.Null(state.UserState.NDatetimeVal);
 
-            Assert.Null(state.StringVal);
+            Assert.Null(state.UserState.StringVal);
         }
 
         /// <summary>

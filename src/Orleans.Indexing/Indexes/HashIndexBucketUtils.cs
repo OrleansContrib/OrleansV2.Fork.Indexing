@@ -16,7 +16,7 @@ namespace Orleans.Indexing
         /// <param name="idxMetaData">the index metadata</param>
         internal static bool UpdateBucketState<K, V>(V updatedGrain, IMemberUpdate iUpdate, HashIndexBucketState<K, V> state, bool isUniqueIndex,
                                                      IndexMetaData idxMetaData) where V : IIndexableGrain
-            => UpdateBucketState(updatedGrain, iUpdate, state, isUniqueIndex, idxMetaData, out K befImg, out HashIndexSingleBucketEntry<V> _, out bool _);
+            => UpdateBucketState(updatedGrain, iUpdate, state, isUniqueIndex, idxMetaData, out bool _);
 
         /// <summary>
         /// This method contains the common functionality for updating the hash-index bucket.
@@ -28,17 +28,12 @@ namespace Orleans.Indexing
         /// <param name="state">the index bucket to be updated</param>
         /// <param name="isUniqueIndex">a flag to indicate whether the hash-index has a uniqueness constraint</param>
         /// <param name="idxMetaData">the index metadata</param>
-        /// <param name="befImg">output parameter: the before-image</param>
-        /// <param name="befEntry">output parameter: the index entry containing the before-image</param>
         /// <param name="fixIndexUnavailableOnDelete">output parameter: this variable determines whether
         ///             the index was still unavailable when we received a delete operation</param>
         internal static bool UpdateBucketState<K, V>(V updatedGrain, IMemberUpdate update, HashIndexBucketState<K, V> state, bool isUniqueIndex,
-                                                     IndexMetaData idxMetaData, out K befImg, out HashIndexSingleBucketEntry<V> befEntry,
-                                                     out bool fixIndexUnavailableOnDelete) where V : IIndexableGrain
+                                                     IndexMetaData idxMetaData, out bool fixIndexUnavailableOnDelete) where V : IIndexableGrain
         {
             fixIndexUnavailableOnDelete = false;
-            befImg = default(K);
-            befEntry = null;
 
             var indexUpdateMode = update is MemberUpdateWithMode updateWithMode ? updateWithMode.UpdateMode : IndexUpdateMode.NonTentative;
             var opType = update.OperationType;
@@ -84,9 +79,9 @@ namespace Orleans.Indexing
 
             if (opType == IndexOperationType.Update)
             {
-                befImg = (K)update.GetBeforeImage();
                 K aftImg = (K)update.GetAfterImage();
-                if (state.IndexMap.TryGetValue(befImg, out befEntry) && befEntry.Values.Contains(updatedGrain))
+                var befImg = (K)update.GetBeforeImage();
+                if (state.IndexMap.TryGetValue(befImg, out var befEntry) && befEntry.Values.Contains(updatedGrain))
                 {
                     // Delete and Insert
                     if (state.IndexMap.TryGetValue(aftImg, out aftEntry))
@@ -125,10 +120,11 @@ namespace Orleans.Indexing
                 }
                 else
                 {
-                    // Insert only
-                    if (idxMetaData.IsChainedBuckets)
+                    // Insert-only, because Delete was not found. If there's a NextBucket so return false to search it;
+                    // otherwise, the desired Delete result is met (the previous value is not present), so proceed to Insert.
+                    if (idxMetaData.IsChainedBuckets && state.NextBucket != null)
                     {
-                        return false; // not found in this bucket
+                        return false;
                     }
 
                     if (!doInsert(aftImg, out bool uniquenessViolation))
@@ -137,7 +133,7 @@ namespace Orleans.Indexing
                             ? throw new UniquenessConstraintViolatedException(
                                     $"The uniqueness property of index {idxMetaData.IndexName} would be violated for an update operation" +
                                     $" for (not found before-image = {befImg}), after-image = {aftImg} and grain = {updatedGrain.GetPrimaryKey()}")
-                            : false;
+                            : false;    // The bucket is full
                     }
                 }
             }
@@ -154,9 +150,9 @@ namespace Orleans.Indexing
             }
             else if (opType == IndexOperationType.Delete)
             {
-                befImg = (K)update.GetBeforeImage();
+                var befImg = (K)update.GetBeforeImage();
 
-                if (state.IndexMap.TryGetValue(befImg, out befEntry) && befEntry.Values.Contains(updatedGrain))
+                if (state.IndexMap.TryGetValue(befImg, out var befEntry) && befEntry.Values.Contains(updatedGrain))
                 {
                     befEntry.Remove(updatedGrain, indexUpdateMode, isUniqueIndex);
                     if (state.IndexStatus != IndexStatus.Available)
@@ -166,7 +162,9 @@ namespace Orleans.Indexing
                 }
                 else if (idxMetaData.IsChainedBuckets)
                 {
-                    return false; //not found in this bucket
+                    // Not found in this bucket. If there's a NextBucket, return false to search it;
+                    // otherwise, the desired Delete result is met (the value is not present), so return true.
+                    return state.NextBucket == null;
                 }
             }
             return true;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Orleans.Indexing.Facet
 {
@@ -19,5 +20,21 @@ namespace Orleans.Indexing.Facet
         /// The actual user state.
         /// </summary>
         public TGrainState UserState = (TGrainState)Activator.CreateInstance(typeof(TGrainState));
+
+        internal void EnsureNullValues(IReadOnlyDictionary<string, object> propertyNullValues)
+        {
+            if (!this.AreNullValuesInitialized)
+            {
+                foreach (var propInfo in typeof(TGrainState).GetProperties())
+                {
+                    var nullValue = IndexUtils.GetNullValue(propInfo);
+                    if (nullValue != null || propertyNullValues.TryGetValue(propInfo.Name, out nullValue))
+                    {
+                        propInfo.SetValue(this.UserState, nullValue);
+                    }
+                }
+                this.AreNullValuesInitialized = true;
+            }
+        }
     }
 }

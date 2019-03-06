@@ -12,11 +12,15 @@ namespace Orleans.Indexing.Facet
 
         public INonFaultTolerantWorkflowIndexedState<TState> CreateNonFaultTolerantWorkflowIndexedState<TState>(IIndexedStateConfiguration config)
             where TState : class, new()
-            => this.CreateIndexedState<NonFaultTolerantWorkflowIndexedState<TState>>(config);
+            => this.CreateIndexedState<NonFaultTolerantWorkflowIndexedState<TState, IndexedGrainStateWrapper<TState>>>(config);
 
         public IFaultTolerantWorkflowIndexedState<TState> CreateFaultTolerantWorkflowIndexedState<TState>(IIndexedStateConfiguration config)
             where TState : class, new()
             => this.CreateIndexedState<FaultTolerantWorkflowIndexedState<TState>>(config);
+
+        public ITransactionalIndexedState<TState> CreateTransactionalIndexedState<TState>(IIndexedStateConfiguration config)
+            where TState : class, new()
+            => this.CreateIndexedState<TransactionalIndexedState<TState>>(config);
 
         private TWrappedIndexedStateImplementation CreateIndexedState<TWrappedIndexedStateImplementation>(IIndexedStateConfiguration config)
             => ActivatorUtilities.CreateInstance<TWrappedIndexedStateImplementation>(this.activationContext.ActivationServices, config);

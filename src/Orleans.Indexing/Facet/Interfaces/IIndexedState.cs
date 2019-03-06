@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
+using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing.Facet
 {
@@ -12,9 +13,10 @@ namespace Orleans.Indexing.Facet
     public interface IIndexedState<TGrainState> where TGrainState : new()
     {
         /// <summary>
-        /// The persistent state of the grain; includes values for indexed and non-indexed properties.
+        /// Attaches an <see cref="ITransactionalState{TState}"/> instance from the Grain's constructor.
+        /// For transactional indexes only.
         /// </summary>
-        TGrainState State { get; }
+        void Attach(ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState);
 
         /// <summary>
         /// The <see cref="Grain.OnActivateAsync()"/> implementation must call this; in turn, this calls
@@ -23,7 +25,7 @@ namespace Orleans.Indexing.Facet
         /// <param name="grain">The grain to manage indexes for</param>
         /// <param name="onGrainActivateFunc">If <paramref name="grain"/> implements custom activation logic, it supplies
         ///     a lambda to do so here, or may simply pass "() => Task.CompletedTask". It is called in parallel with
-        ///     inserting grain indexes into the silo index collections and later during <see cref="WriteAsync()"/>.</param>
+        ///     inserting grain indexes into the silo index collections.</param>
         Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc);
 
         /// <summary>
@@ -37,16 +39,15 @@ namespace Orleans.Indexing.Facet
         Task OnDeactivateAsync(Func<Task> onGrainDeactivateFunc);
 
         /// <summary>
-        /// Reads current grain state from the storage provider. Erases any updates to indexed and non-indexed properties.
+        /// Reads the grain state, which resets the value of all indexed and non-indexed properties.
         /// </summary>
-        Task ReadAsync();
+        Task<TResult> PerformRead<TResult>(Func<TGrainState, TResult> readFunction);
 
         /// <summary>
-        /// Coordinates the writing of all indexed interfaces defined on the grain. It will retrieve this from cached
-        /// per-grain-class list of indexes and properties to do the mapping, and maps the State structure to the various
-        /// TProperties structures. It includes the grain state update in the workflow appropriately.
+        /// Executes <paramref name="updateFunction"/> then writes the grain state and the index entries for all indexed interfaces
+        /// defined on the grain.
         /// </summary>
-        Task WriteAsync();
+        Task<TResult> PerformUpdate<TResult>(Func<TGrainState, TResult> updateFunction);
 
         /// <summary>
         /// This method returns the set of active workflow IDs for a fault-tolerant Total Index

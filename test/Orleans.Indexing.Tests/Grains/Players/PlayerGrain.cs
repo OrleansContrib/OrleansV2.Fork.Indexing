@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Orleans.Concurrency;
 using Orleans.Indexing.Facet;
 using Orleans.Providers;
+using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing.Tests
 {
@@ -21,6 +22,15 @@ namespace Orleans.Indexing.Tests
             => Debug.Assert(this.GetType().GetConsistencyScheme() == ConsistencyScheme.FaultTolerantWorkflow);
     }
 
+    public abstract class PlayerGrainTransactional<TGrainState> : PlayerGrain<TGrainState>
+        where TGrainState : PlayerGrainState, new()
+    {
+        public PlayerGrainTransactional(IIndexedState<TGrainState> indexedState,
+                                        ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState)
+            : base(indexedState, transactionalState)
+            => Debug.Assert(this.GetType().GetConsistencyScheme() == ConsistencyScheme.Transactional);
+    }
+
     /// <summary>
     /// A simple grain that represents a player in a game
     /// </summary>
@@ -30,32 +40,23 @@ namespace Orleans.Indexing.Tests
         // This is populated by Orleans.Indexing with the indexes from the implemented interfaces on this class.
         private readonly IIndexedState<TGrainState> indexedState;
 
-        private TGrainState State => this.indexedState.State;
+        internal Task<TResult> GetProperty<TResult>(Func<TGrainState, TResult> readFunction)
+            => this.indexedState.PerformRead(readFunction);
 
-        public string Email => this.State.Email;
-        public string Location => this.State.Location;
-        public int Score => this.State.Score;
+        internal Task SetProperty(Action<TGrainState> setterAction, bool retry)
+            => IndexingTestUtils.SetPropertyAndWriteStateAsync(setterAction, this.indexedState, retry);
 
-        public Task<string> GetLocation() => Task.FromResult(this.Location);
+        public Task<string> GetLocation() => this.GetProperty(state => state.Location);
 
-        public async Task SetLocation(string value)
-            => await IndexingTestUtils.SetPropertyAndWriteStateAsync(() => this.State.Location = value, this.indexedState.WriteAsync, this.indexedState.ReadAsync, retry:true);
+        public async Task SetLocation(string value) => await this.SetProperty(state => state.Location = value, retry:true);
 
-        public Task<int> GetScore() => Task.FromResult(this.Score);
+        public Task<int> GetScore() => this.GetProperty(state => state.Score);
 
-        public Task SetScore(int score)
-        {
-            this.State.Score = score;
-            return this.indexedState.WriteAsync();
-        }
+        public Task SetScore(int value) => this.SetProperty(state => state.Score = value, retry: false);
 
-        public Task<string> GetEmail() => Task.FromResult(this.Email);
+        public Task<string> GetEmail() => this.GetProperty(state => state.Email);
 
-        public Task SetEmail(string email)
-        {
-            this.State.Email = email;
-            return this.indexedState.WriteAsync();
-        }
+        public Task SetEmail(string value) => this.SetProperty(state => state.Email = value, retry: false);
 
         public Task Deactivate()
         {
@@ -63,15 +64,20 @@ namespace Orleans.Indexing.Tests
             return Task.CompletedTask;
         }
 
-        public PlayerGrain(IIndexedState<TGrainState> indexedState)
+        public PlayerGrain(IIndexedState<TGrainState> indexedState,
+                           ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState = null)
         {
             this.indexedState = indexedState;
+            if (transactionalState != null)
+            {
+                this.indexedState.Attach(transactionalState);
+            }
         }
 
-        #region Facet methods - required overrides of Grain<TGrainState>
+        #region Facet methods - required overrides of Grain
         public override Task OnActivateAsync() => this.indexedState.OnActivateAsync(this, base.OnActivateAsync);
         public override Task OnDeactivateAsync() => this.indexedState.OnDeactivateAsync(() => Task.CompletedTask);
-        #endregion Facet methods - required overrides of Grain<TGrainState>
+        #endregion Facet methods - required overrides of Grain
 
         #region Required shims for IIndexableGrain methods for fault tolerance
         public Task<Immutable<System.Collections.Generic.HashSet<Guid>>> GetActiveWorkflowIdsSet() => this.indexedState.GetActiveWorkflowIdsSet();

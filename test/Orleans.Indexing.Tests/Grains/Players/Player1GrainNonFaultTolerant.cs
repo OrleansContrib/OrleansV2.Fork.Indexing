@@ -1,4 +1,5 @@
 using Orleans.Indexing.Facet;
+using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing.Tests
 {

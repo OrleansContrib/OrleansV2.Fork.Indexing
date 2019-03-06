@@ -27,6 +27,7 @@
     <ProjectReference Include="..\Orleans.Core.Legacy\Orleans.Core.Legacy.csproj" />
     <ProjectReference Include="..\Orleans.Core\Orleans.Core.csproj" />
     <ProjectReference Include="..\Orleans.Runtime\Orleans.Runtime.csproj" />
+    <ProjectReference Include="..\Orleans.Transactions\Orleans.Transactions.csproj" />
     <ProjectReference Include="..\OrleansProviders\OrleansProviders.csproj" />
   </ItemGroup>
 </Project>

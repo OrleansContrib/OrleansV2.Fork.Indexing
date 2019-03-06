@@ -8,6 +8,7 @@ using Orleans.Runtime;
 using Orleans.Indexing.Facet;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
+using System.Threading.Tasks;
 
 namespace Orleans.Indexing
 {
@@ -79,19 +80,6 @@ namespace Orleans.Indexing
 
         internal static bool IsNullable(this Type type) => !type.IsValueType || Nullable.GetUnderlyingType(type) != null;
 
-        internal static TGrainState SetNullValues<TGrainState>(TGrainState state, IReadOnlyDictionary<string, object> propertyNullValues)
-        {
-            foreach (var propInfo in typeof(TGrainState).GetProperties())
-            {
-                var nullValue = GetNullValue(propInfo);
-                if (nullValue != null || propertyNullValues.TryGetValue(propInfo.Name, out nullValue))
-                {
-                    propInfo.SetValue(state, nullValue);
-                }
-            }
-            return state;
-        }
-
         internal static object GetNullValue(PropertyInfo propInfo)
         {
             if (propInfo.PropertyType.IsNullable())
@@ -104,6 +92,14 @@ namespace Orleans.Indexing
                 ? null
                 : indexAttr.NullValue.ConvertTo(propInfo.PropertyType);
         }
+
+        public static Task PerformRead<TGrainState>(this IIndexedState<TGrainState> indexedState)
+            where TGrainState : class, new()
+            => indexedState.PerformRead(_ => true);
+
+        public static Task PerformUpdate<TGrainState>(this IIndexedState<TGrainState> indexedState, Action<TGrainState> updateAction)
+            where TGrainState : class, new()
+            => indexedState.PerformUpdate(state => { updateAction(state); return true; });
 
         internal static object ConvertTo(this string value, Type propertyType)
         {
@@ -209,9 +205,9 @@ namespace Orleans.Indexing
                         case INonFaultTolerantWorkflowIndexedStateAttribute _:
                             setScheme(ConsistencyScheme.NonFaultTolerantWorkflow);
                             break;
-//TODO                        case ITransactionalIndexedStateAttribute _:
-//                            setScheme(ConsistencyScheme.Transactional);
-//                            break;
+                        case ITransactionalIndexedStateAttribute _:
+                            setScheme(ConsistencyScheme.Transactional);
+                            break;
                         default:
                             throw new IndexConfigurationException($"Grain type {grainClassType.Name} has an unknown Indexing Facet constructor attribute {attr.GetType().Name}");
                     }
@@ -228,6 +224,14 @@ namespace Orleans.Indexing
                 : services.GetService<IGrainStorage>();
             string failedProviderName() => string.IsNullOrEmpty(storageName) ? "default storage provider" : $"storage provider with the name {storageName}";
             return storageProvider ?? throw new IndexConfigurationException($"No {failedProviderName()} was found while attempting to create index state storage.");
+        }
+
+        internal static void ShallowCopyFrom(this object dest, object src)
+        {
+            foreach (var propInfo in src.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                propInfo.SetValue(dest, propInfo.GetValue(src, null));
+            }
         }
 
         internal static bool IsIndexInterfaceType(this Type indexType)
@@ -249,7 +253,7 @@ namespace Orleans.Indexing
             => !indexType.IsTotalIndex() && !indexType.IsDirectStorageManagedIndex();
 
         internal static bool IsTotalIndex(this IIndexInterface itf)
-            => itf is ITotalIndex;     // TODO Possible addition for Transactional
+            => itf is ITotalIndex;
 
         internal static bool IsDirectStorageManagedIndex(this IIndexInterface itf)
             => itf is IDirectStorageManagedIndex;

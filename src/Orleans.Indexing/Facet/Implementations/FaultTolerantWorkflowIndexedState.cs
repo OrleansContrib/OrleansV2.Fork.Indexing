@@ -3,15 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
-using Orleans.Core;
+using Orleans.Runtime;
 
 namespace Orleans.Indexing.Facet
 {
-    public class FaultTolerantWorkflowIndexedState<TGrainState> : NonFaultTolerantWorkflowIndexedState<TGrainState>,
-                                                                  IFaultTolerantWorkflowIndexedState<TGrainState> where TGrainState : class, new()
+    internal class FaultTolerantWorkflowIndexedState<TGrainState> : NonFaultTolerantWorkflowIndexedState<TGrainState, FaultTolerantIndexedGrainStateWrapper<TGrainState>>,
+                                                                    IFaultTolerantWorkflowIndexedState<TGrainState> where TGrainState : class, new()
     {
         private readonly IGrainFactory _grainFactory;    // TODO: standardize leading _ or not; and don't do this._
-        IStorage<FaultTolerantIndexedGrainStateWrapper<TGrainState>> storage;
 
         public FaultTolerantWorkflowIndexedState(
                 IServiceProvider sp,
@@ -25,7 +24,7 @@ namespace Orleans.Indexing.Facet
 
         private bool _hasAnyTotalIndex;
 
-        private FaultTolerantIndexedGrainStateWrapper<TGrainState> ftWrappedState => this.storage.State;
+        private FaultTolerantIndexedGrainStateWrapper<TGrainState> ftWrappedState => base.nonTransactionalState.State;
 
         internal override IDictionary<Type, IIndexWorkflowQueue> WorkflowQueues
         {
@@ -39,14 +38,12 @@ namespace Orleans.Indexing.Facet
             set => this.ftWrappedState.ActiveWorkflowsSet = value;
         }
 
+        #region public API
+
         public async override Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc)
         {
-            this.storage = base.SiloIndexManager.GetStorageBridge<FaultTolerantIndexedGrainStateWrapper<TGrainState>>(grain, base.IndexedStateConfig.StorageName);
-
-            // In order to initialize base.wrappedState etc. this must be called here.
-            await base.PreActivate(grain,
-                                   async () => { await this.storage.ReadStateAsync(); return this.storage.State; },
-                                   () => this.storage.WriteStateAsync());
+            base.Logger.Trace($"Activating indexable grain of type {grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
+            await base.InitializeState(grain);
 
             // If the list of active workflows is null or empty we can assume that we were not previously activated
             // or did not have any incomplete workflow queue items in a prior activation.
@@ -60,11 +57,13 @@ namespace Orleans.Indexing.Facet
                 // There are some remaining active workflows so they should be handled first.
                 this.PruneWorkflowQueuesForMissingInterfaceTypes();
                 await this.HandleRemainingWorkflows()
-                           .ContinueWith(t => Task.WhenAll(this.PruneActiveWorkflowsSetFromAlreadyHandledWorkflows(t.Result),
-                                                           base.FinishActivateAsync(onGrainActivateFunc)));
+                          .ContinueWith(t => Task.WhenAll(this.PruneActiveWorkflowsSetFromAlreadyHandledWorkflows(t.Result),
+                                                          base.FinishActivateAsync(onGrainActivateFunc)));
             }
-            this._hasAnyTotalIndex = this._grainIndexes.HasAnyTotalIndex;
+            this._hasAnyTotalIndex = base._grainIndexes.HasAnyTotalIndex;
         }
+
+        #endregion public API
 
         /// <summary>
         /// Applies a set of updates to the indexes defined on the grain
@@ -121,7 +120,7 @@ namespace Orleans.Indexing.Facet
                 // is single-threaded unless the method is marked as interleaved; this method is called from this.WriteStateAsync, which
                 // is not marked as interleaved, so the queue handler call to this.GetActiveWorkflowIdsSet blocks until this method exits.
                 this.AddWorkflowIdsToActiveWorkflows(interfaceToUpdatesMap.Select(kvp => interfaceToUpdatesMap.WorkflowIds[kvp.Key]).ToArray());
-                await base.writeGrainStateFunc();
+                await this.WriteStateAsync();
             }
 
             // If everything was successful, the before images are updated
@@ -217,7 +216,7 @@ namespace Orleans.Indexing.Facet
             var initialSize = this.ActiveWorkflowsSet.Count;
             this.ActiveWorkflowsSet.Clear();
             this.ActiveWorkflowsSet.UnionWith(workflowsInProgress);
-            return (this.ActiveWorkflowsSet.Count != initialSize) ? base.writeGrainStateFunc() : Task.CompletedTask;
+            return (this.ActiveWorkflowsSet.Count != initialSize) ? this.WriteStateAsync() : Task.CompletedTask;
         }
 
         private void PruneWorkflowQueuesForMissingInterfaceTypes()

@@ -4,5 +4,6 @@ namespace Orleans.Indexing.Facet
     {
         INonFaultTolerantWorkflowIndexedState<TState> CreateNonFaultTolerantWorkflowIndexedState<TState>(IIndexedStateConfiguration config) where TState : class, new();
         IFaultTolerantWorkflowIndexedState<TState> CreateFaultTolerantWorkflowIndexedState<TState>(IIndexedStateConfiguration config) where TState : class, new();
+        ITransactionalIndexedState<TState> CreateTransactionalIndexedState<TState>(IIndexedStateConfiguration config) where TState : class, new();
     }
 }

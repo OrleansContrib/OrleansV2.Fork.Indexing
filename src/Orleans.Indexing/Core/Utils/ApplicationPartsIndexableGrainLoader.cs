@@ -222,33 +222,47 @@ namespace Orleans.Indexing
             var isTotalIndex = indexType.IsTotalIndex();
             var isPerSiloIndex = indexType.IsPartitionedPerSiloIndex();
             var isFaultTolerantWorkflow = consistencyScheme == ConsistencyScheme.FaultTolerantWorkflow;
+            var isTransactional = consistencyScheme == ConsistencyScheme.Transactional;
 
             if (indexAttr is ActiveIndexAttribute && isUnique)
             {
                 // See comments in ActiveIndexAttribute for details of why this is disallowed.
                 throw new InvalidOperationException($"An active Index cannot be configured to be unique, because multiple activations, persisting, and deactivations can create duplicates." +
                                                     $" Active Index of type {IndexUtils.GetFullTypeName(indexType)} is defined to be unique on property {propInfo.Name}" +
-                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on {IndexUtils.GetFullTypeName(grainInterfaceType)} grain interface.");
+                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on the {IndexUtils.GetFullTypeName(grainInterfaceType)} grain interface.");
             }
             if (isPerSiloIndex && isUnique)
             {
                 throw new InvalidOperationException($"Unique indexes cannot be partitioned per silo because uniqueness across silos is currently not enforced." +
                                                     $" Partitioned Per Silo Index of type {IndexUtils.GetFullTypeName(indexType)} is defined to be unique on property {propInfo.Name}" +
-                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on {IndexUtils.GetFullTypeName(grainInterfaceType)} grain interface.");
+                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on the {IndexUtils.GetFullTypeName(grainInterfaceType)} grain interface.");
             }
             if (isFaultTolerantWorkflow && isEager)
             {
-                throw new InvalidOperationException($"A workflow-fault-tolerant grain implementation cannot be configured to eagerly update its indexes." +
+                throw new InvalidOperationException($"A workflow-fault-tolerant consistency scheme cannot be configured to eagerly update its indexes." +
                                                     $" The only option for updating the indexes of a fault-tolerant indexable grain is lazy updating." +
                                                     $" The index of type {IndexUtils.GetFullTypeName(indexType)} is defined to be updated eagerly on property {propInfo.Name}" +
-                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on {IndexUtils.GetFullTypeName(grainClassType)} grain implementation class.");
+                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on the {IndexUtils.GetFullTypeName(grainClassType)} grain implementation class.");
             }
             if (isFaultTolerantWorkflow && indexType.IsActiveIndex())
             {
-                throw new InvalidOperationException($"An Active index cannot be workflow-fault-tolerant, because it will continually be reactivated as part of the fault-tolerant workflow." +
-                                                    $" The Active index of type {IndexUtils.GetFullTypeName(indexType)} on property {propInfo.Name}" +
-                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on {IndexUtils.GetFullTypeName(grainClassType)} grain implementation class" +
+                throw new InvalidOperationException($"A workflow-fault-tolerant consistency scheme cannot be used with an Active index, because it will continually be reactivated as part of the fault-tolerant workflow." +
+                                                    $" An Active index of type {IndexUtils.GetFullTypeName(indexType)} is defined on property {propInfo.Name}" +
+                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on the {IndexUtils.GetFullTypeName(grainClassType)} grain implementation class" +
                                                     $" which uses workflow-fault-tolerant indexing.");
+            }
+            if (isTransactional && !isEager)
+            {
+                throw new InvalidOperationException($"A transactional consistency scheme must be configured to eagerly update its indexes." +
+                                                    $" The index of type {IndexUtils.GetFullTypeName(indexType)} is defined to be updated eagerly on property {propInfo.Name}" +
+                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on {IndexUtils.GetFullTypeName(grainClassType)} grain implementation class.");
+            }
+            if (isTransactional && indexType.IsActiveIndex())
+            {
+                throw new InvalidOperationException($"A transactional consistency scheme cannot be used with an Active index, because activation and deactivation do not always run in a transactional context." +
+                                                    $" An Active index of type {IndexUtils.GetFullTypeName(indexType)} is defined on property {propInfo.Name}" +
+                                                    $" of class {IndexUtils.GetFullTypeName(propertiesArgType)} on the {IndexUtils.GetFullTypeName(grainClassType)} grain implementation class" +
+                                                    $" which uses transactional indexing.");
             }
             if (grainIndexesAreEager.HasValue && grainIndexesAreEager.Value != isEager)
             {
