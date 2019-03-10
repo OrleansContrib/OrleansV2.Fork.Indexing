@@ -18,6 +18,7 @@ namespace Orleans.Indexing
         /// <returns>the result of lookup into the hash-index</returns>
         [ReadOnly]
         [AlwaysInterleave]
-        Task<V> LookupUnique(K key);
+        [Transaction(TransactionOption.Supported)]  // TODO: Where do we use LookupUnique?
+        Task<V> LookupUniqueAsync(K key);
     }
 }

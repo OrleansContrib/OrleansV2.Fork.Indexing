@@ -18,7 +18,7 @@ namespace Orleans.Indexing
     /// <typeparam name="K">type of hash-index key</typeparam>
     /// <typeparam name="V">type of grain that is being indexed</typeparam>
     [Reentrant]
-    public abstract class HashIndexSingleBucket<K, V> : Grain, IHashIndexSingleBucketInterface<K, V> where V : class, IIndexableGrain
+    public abstract class HashIndexSingleBucket<K, V> : Grain, ITransactionalLookupIndex<K, V>, IHashIndexSingleBucketInterface<K, V> where V : class, IIndexableGrain
     {
         // IndexManager (and therefore logger) cannot be set in ctor because Grain activation has not yet set base.Runtime.
         internal SiloIndexManager SiloIndexManager => IndexManager.GetSiloIndexManager(ref __siloIndexManager, base.ServiceProvider);
@@ -146,6 +146,7 @@ namespace Orleans.Indexing
             if (this.IsTransactional)
             {
                 await ApplyIndexUpdateTransactional(updatedGrain, iUpdate.Value, isUnique, idxMetaData, siloAddress);
+                return true;
             }
             await DirectApplyIndexUpdateNonPersistent(updatedGrain, iUpdate.Value, isUnique, idxMetaData, siloAddress);
             await PersistIndexNonTransactional();
@@ -258,7 +259,7 @@ namespace Orleans.Indexing
             return e;
         }
 
-        public async Task Lookup(IOrleansQueryResultStream<V> result, K key)
+        public async Task LookupAsync(IOrleansQueryResultStream<V> result, K key)
         {
             this.Logger.Trace($"Streamed index lookup called for key = {key}");
 
@@ -291,10 +292,10 @@ namespace Orleans.Indexing
                 return;
             }
 
-            await (nextBucket != null ? nextBucket.Lookup(result, key) : result.OnCompletedAsync());
+            await (nextBucket != null ? nextBucket.LookupAsync(result, key) : result.OnCompletedAsync());
         }
 
-        public async Task<V> LookupUnique(K key)
+        public async Task<V> LookupUniqueAsync(K key)
         {
             this.Logger.Trace($"Unique index lookup called for key = {key}");
 
@@ -322,7 +323,9 @@ namespace Orleans.Indexing
                 throw LogException($"The lookup key \"{key}\" does not exist on index \"{IndexUtils.GetIndexNameFromIndexGrain(this)}\".",
                                    IndexingErrorCode.IndexingIndexIsNotReadyYet_GrainBucket4);
             });
-            return nextBucket != null ? await ((IHashIndexInterface<K, V>)nextBucket).LookupUnique(key) : result;
+            return nextBucket == null ? result
+                                      : (await (this.IsTransactional ? ((ITransactionalLookupIndex<K, V>)nextBucket).LookupTransactionalUniqueAsync(key)
+                                                                     : ((IHashIndexInterface<K, V>)nextBucket).LookupUniqueAsync(key)));
         }
 
         public Task Dispose()
@@ -339,9 +342,9 @@ namespace Orleans.Indexing
 
         public Task<bool> IsAvailable() => Task.FromResult(true); // TODO: add support for index construction: Task.FromResult(this.State.IndexStatus == IndexStatus.Available);
 
-        Task IIndexInterface.Lookup(IOrleansQueryResultStream<IIndexableGrain> result, object key) => Lookup(result.Cast<V>(), (K)key);
+        Task IIndexInterface.LookupAsync(IOrleansQueryResultStream<IIndexableGrain> result, object key) => this.LookupAsync(result.Cast<V>(), (K)key);
 
-        public async Task<IOrleansQueryResult<V>> Lookup(K key)
+        public async Task<IOrleansQueryResult<V>> LookupAsync(K key)
         {
             this.Logger.Trace($"Eager index lookup called for key = {key}");
 
@@ -364,9 +367,19 @@ namespace Orleans.Indexing
                 return new OrleansQueryResult<V>(Enumerable.Empty<V>());
             });
 
-            return nextBucket != null ? await nextBucket.Lookup(key) : result;
+            return nextBucket == null ? result
+                                      : (await (this.IsTransactional ? ((ITransactionalLookupIndex<K, V>)nextBucket).LookupTransactionalAsync(key)
+                                                                     : nextBucket.LookupAsync(key)));
         }
 
-        async Task<IOrleansQueryResult<IIndexableGrain>> IIndexInterface.Lookup(object key) => await Lookup((K)key);
+        async Task<IOrleansQueryResult<IIndexableGrain>> IIndexInterface.LookupAsync(object key) => await this.LookupAsync((K)key);
+
+        #region ITransactionalLookupIndex<K,V>
+        public Task LookupTransactionalAsync(IOrleansQueryResultStream<V> result, K key) => this.LookupAsync(result, key);
+        public Task<IOrleansQueryResult<V>> LookupTransactionalAsync(K key) => this.LookupAsync(key);
+        public Task LookupTransactionalAsync(IOrleansQueryResultStream<IIndexableGrain> result, object key) => ((IIndexInterface<K, V>)this).LookupAsync(result, key);
+        public Task<IOrleansQueryResult<IIndexableGrain>> LookupTransactionalAsync(object key) => ((IIndexInterface<K, V>)this).LookupAsync(key);
+        public Task<V> LookupTransactionalUniqueAsync(K key) => this.LookupUniqueAsync(key);
+        #endregion ITransactionalLookupIndex<K,V>
     }
 }

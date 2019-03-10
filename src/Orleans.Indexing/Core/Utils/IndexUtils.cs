@@ -226,13 +226,8 @@ namespace Orleans.Indexing
             return storageProvider ?? throw new IndexConfigurationException($"No {failedProviderName()} was found while attempting to create index state storage.");
         }
 
-        internal static void ShallowCopyFrom(this object dest, object src)
-        {
-            foreach (var propInfo in src.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                propInfo.SetValue(dest, propInfo.GetValue(src, null));
-            }
-        }
+        public static IGrain GetGrain(this IGrainFactory grainFactory, string grainPrimaryKey, Type grainInterfaceType)
+            => Silo.GetGrain(grainFactory, grainPrimaryKey, grainInterfaceType, grainInterfaceType);
 
         internal static bool IsIndexInterfaceType(this Type indexType)
             => typeof(IIndexInterface).IsAssignableFrom(indexType);

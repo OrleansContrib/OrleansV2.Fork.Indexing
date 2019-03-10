@@ -47,7 +47,7 @@ namespace Orleans.Indexing
                                                  IndexMetaData idxMetaData, SiloAddress siloAddress)
             => Task.FromResult(true);   // The index is maintained by the underlying _grainStorage, when the grain's WriteStateAsync is called
 
-        public async Task Lookup(IOrleansQueryResultStream<V> result, K key)
+        public async Task LookupAsync(IOrleansQueryResultStream<V> result, K key)
         {
             var res = await LookupGrainReferences(key);
             await result.OnNextBatchAsync(res);
@@ -66,14 +66,14 @@ namespace Orleans.Indexing
             return resultReferences.Select(grain => grain.Cast<V>()).ToList();
         }
 
-        public async Task<V> LookupUnique(K key)
+        public async Task<V> LookupUniqueAsync(K key)
         {
             var result = new OrleansFirstQueryResultStream<V>();
             var taskCompletionSource = new TaskCompletionSource<V>();
             Task<V> tsk = taskCompletionSource.Task;
             Action<V> responseHandler = taskCompletionSource.SetResult;
             await result.SubscribeAsync(new QueryFirstResultStreamObserver<V>(responseHandler));
-            await Lookup(result, key);
+            await LookupAsync(result, key);
             return await tsk;
         }
 
@@ -81,11 +81,11 @@ namespace Orleans.Indexing
 
         public Task<bool> IsAvailable() => Task.FromResult(true);
 
-        Task IIndexInterface.Lookup(IOrleansQueryResultStream<IIndexableGrain> result, object key) => Lookup(result.Cast<V>(), (K)key);
+        Task IIndexInterface.LookupAsync(IOrleansQueryResultStream<IIndexableGrain> result, object key) => this.LookupAsync(result.Cast<V>(), (K)key);
 
-        public async Task<IOrleansQueryResult<V>> Lookup(K key) => new OrleansQueryResult<V>(await LookupGrainReferences(key));
+        public async Task<IOrleansQueryResult<V>> LookupAsync(K key) => new OrleansQueryResult<V>(await this.LookupGrainReferences(key));
 
-        async Task<IOrleansQueryResult<IIndexableGrain>> IIndexInterface.Lookup(object key) => await Lookup((K)key);
+        async Task<IOrleansQueryResult<IIndexableGrain>> IIndexInterface.LookupAsync(object key) => await this.LookupAsync((K)key);
 
         private void EnsureGrainStorage()
         {

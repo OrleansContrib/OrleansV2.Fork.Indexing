@@ -135,7 +135,7 @@ namespace Orleans.Indexing
             if (typeof(IGrain).IsAssignableFrom(idxType))
             {
                 // This must call the static Silo methods because we may not be InSilo.
-                index = (IIndexInterface)Silo.GetGrain(this.grainFactory, IndexUtils.GetIndexGrainPrimaryKey(grainInterfaceType, indexName), idxType, idxType);
+                index = (IIndexInterface)this.grainFactory.GetGrain(IndexUtils.GetIndexGrainPrimaryKey(grainInterfaceType, indexName), idxType);
 
                 if (this.IsInSilo)
                 {

@@ -42,6 +42,7 @@ namespace Orleans.Indexing
                     this.IndexType = typeof(IActiveHashIndexSingleBucket<,>);
                     break;
                 case ActiveIndexType.HashIndexPartitionedByKeyHash:
+                    // This uses the class, not an interface, because there is no underlying grain implementation for per-key indexes
                     this.IndexType = typeof(ActiveHashIndexPartitionedPerKey<,>);
                     break;
                 case ActiveIndexType.HashIndexPartitionedBySilo:

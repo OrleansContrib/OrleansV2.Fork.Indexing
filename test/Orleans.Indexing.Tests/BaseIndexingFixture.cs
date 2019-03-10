@@ -47,7 +47,7 @@ namespace Orleans.Indexing.Tests
                            parts.AddApplicationPart(typeof(SimpleGrain).Assembly).WithReferences();
                        });
 
-#if false // TODO: Fix CosmosDB to refer to Microsoft.Extensions.Options for OptionsBuilder
+#if false   // TODO CosmosDB still expects Orleans.Configuration.OptionsBuilder
             return databaseName != null
                 ? hostBuilder.AddCosmosDBGrainStorage(IndexingTestConstants.CosmosDBGrainStorage, opt =>
                     {

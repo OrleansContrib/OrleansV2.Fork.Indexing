@@ -22,6 +22,7 @@ namespace Orleans.Indexing
         private static readonly PropertyInfo isEagerProperty = typeof(IndexAttribute).GetProperty(nameof(IndexAttribute.IsEager));
         private static readonly PropertyInfo isUniqueProperty = typeof(IndexAttribute).GetProperty(nameof(IndexAttribute.IsUnique));
         private static readonly PropertyInfo maxEntriesPerBucketProperty = typeof(IndexAttribute).GetProperty(nameof(IndexAttribute.MaxEntriesPerBucket));
+        private static readonly PropertyInfo transactionalVariantProperty = typeof(TransactionalIndexVariantAttribute).GetProperty(nameof(TransactionalIndexVariantAttribute.TransactionalIndexType));
 
         private bool IsInSilo => this.siloIndexManager != null;
 
@@ -164,6 +165,14 @@ namespace Orleans.Indexing
                     }
 
                     var indexType = (Type)indexTypeProperty.GetValue(indexAttr);
+                    if (consistencyScheme == ConsistencyScheme.Transactional)
+                    {
+                        var transactionalVariantAttr = indexType.GetCustomAttribute<TransactionalIndexVariantAttribute>();
+                        if (transactionalVariantAttr != null)
+                        {
+                            indexType = transactionalVariantAttr.TransactionalIndexType;
+                        }
+                    }
                     if (indexType.IsGenericTypeDefinition)
                     {
                         // For the (Active|Total) constructors that take (Active|Total)IndexType parameters, leaving the indexType's key type and interface type

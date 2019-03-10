@@ -36,7 +36,7 @@ namespace Orleans.Indexing.Tests
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
 
             await p2.Deactivate();
-            Thread.Sleep(1000);
+            Thread.Sleep(ITC.DelayUntilIndexesAreUpdatedLazily);
             Assert.Equal(1, await getLocationCount(ITC.Seattle));
 
             p2 = base.GetGrain<IPlayer1GrainNonFaultTolerant>(2);
@@ -61,12 +61,12 @@ namespace Orleans.Indexing.Tests
 
             var locIdx = await base.GetAndWaitForIndex<string, IPlayer1GrainTransactional>(ITC.LocationProperty);
 
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<IPlayer1GrainTransactional, Player1PropertiesNonFaultTolerant>(location);
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<IPlayer1GrainTransactional, Player1PropertiesTransactional>(location);
 
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
 
             await p2.Deactivate();
-            Thread.Sleep(1000);
+            Thread.Sleep(ITC.DelayUntilIndexesAreUpdatedLazily);
             Assert.Equal(2, await getLocationCount(ITC.Seattle));   // Transactional indexes are always Total, so the count remains 2
 
             p2 = base.GetGrain<IPlayer1GrainTransactional>(2);

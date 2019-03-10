@@ -119,6 +119,36 @@ namespace Orleans.Indexing.Tests
         }
 
         /// <summary>
+        /// Tests basic transactional functionality of HashIndexPartitionedPerKey
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing")]
+        public async Task Test_Indexing_IndexLookup4_Txn()
+        {
+            var p1 = base.GetGrain<IPlayer3GrainTransactional>(1);
+            await p1.SetLocation(ITC.Seattle);
+
+            var p2 = base.GetGrain<IPlayer3GrainTransactional>(2);
+            var p3 = base.GetGrain<IPlayer3GrainTransactional>(3);
+
+            await p2.SetLocation(ITC.Seattle);
+            await p3.SetLocation(ITC.SanFrancisco);
+
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer3GrainTransactional>(ITC.LocationProperty);
+
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<IPlayer3GrainTransactional, Player3PropertiesTransactional>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
+
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+
+            await p2.Deactivate();
+            await Task.Delay(ITC.DelayUntilIndexesAreUpdatedLazily);
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));   // Transactional indexes are always Total, so the count remains 2
+
+            p2 = base.GetGrain<IPlayer3GrainTransactional>(2);
+            Assert.Equal(ITC.Seattle, await p2.GetLocation());
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+        }
+
+        /// <summary>
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -18,14 +19,16 @@ namespace Orleans.Indexing
         where BucketT : IHashIndexPartitionedPerKeyBucketInterface<K, V>, IGrainWithStringKey
     {
         private string _indexName;
+        private bool isTransactional = false;
 
         private readonly IndexManager indexManager;
         private readonly ILogger logger;
         private int maxHashBuckets;
 
-        public HashIndexPartitionedPerKey(IServiceProvider serviceProvider, string indexName, bool isUniqueIndex)
+        public HashIndexPartitionedPerKey(IServiceProvider serviceProvider, string indexName, bool isUniqueIndex, bool isTransactional = false)
         {
             this._indexName = indexName;
+            this.isTransactional = isTransactional;
             this.indexManager = IndexManager.GetIndexManager(serviceProvider);
             this.logger = this.indexManager.LoggerFactory.CreateLoggerWithFullCategoryName<HashIndexPartitionedPerKey<K, V, BucketT>>();
             this.maxHashBuckets = this.indexManager.IndexingOptions.MaxHashBuckets;
@@ -133,29 +136,31 @@ namespace Orleans.Indexing
             return true;
         }
 
-        public Task Lookup(IOrleansQueryResultStream<V> result, K key)
+        public Task LookupAsync(IOrleansQueryResultStream<V> result, K key)
         {
             logger.Trace($"Streamed index lookup called for key = {key}");
 
             var keyHash = GetBucketIndexFromHashCode(key);
             BucketT targetBucket = this.GetBucketGrain(keyHash);
-            return targetBucket.Lookup(result, key);
+            return isTransactional ? ((ITransactionalLookupIndex<K, V>)targetBucket).LookupTransactionalAsync(result, key)
+                                   : targetBucket.LookupAsync(result, key);
         }
 
-        public async Task<V> LookupUnique(K key)
+        public async Task<V> LookupUniqueAsync(K key)
         {
             var result = new OrleansFirstQueryResultStream<V>();
             var taskCompletionSource = new TaskCompletionSource<V>();
             Task<V> tsk = taskCompletionSource.Task;
             Action<V> responseHandler = taskCompletionSource.SetResult;
             await result.SubscribeAsync(new QueryFirstResultStreamObserver<V>(responseHandler));
-            await Lookup(result, key);
+            await LookupAsync(result, key);
             return await tsk;
         }
 
         public Task Dispose()
         {
             // TODO Right now we cannot do anything; we need to know the list of buckets.
+            Debug.Assert(!isTransactional, "Should not call Dispose on Transactional indexes");
             return Task.CompletedTask;
         }
 
@@ -169,18 +174,19 @@ namespace Orleans.Indexing
             return this.maxHashBuckets > 0 ? hashCode % this.maxHashBuckets : hashCode;
         }
 
-        Task IIndexInterface.Lookup(IOrleansQueryResultStream<IIndexableGrain> result, object key) => Lookup(result.Cast<V>(), (K)key);
+        Task IIndexInterface.LookupAsync(IOrleansQueryResultStream<IIndexableGrain> result, object key) => this.LookupAsync(result.Cast<V>(), (K)key);
 
-        public Task<IOrleansQueryResult<V>> Lookup(K key)
+        public Task<IOrleansQueryResult<V>> LookupAsync(K key)
         {
             logger.Trace($"Eager index lookup called for key = {key}");
 
             var keyHash = GetBucketIndexFromHashCode(key);
             BucketT targetBucket = this.GetBucketGrain(keyHash);
-            return targetBucket.Lookup(key);
+            return this.isTransactional ? ((ITransactionalLookupIndex<K, V>)targetBucket).LookupTransactionalAsync(key)
+                                        : targetBucket.LookupAsync(key);
         }
 
-        async Task<IOrleansQueryResult<IIndexableGrain>> IIndexInterface.Lookup(object key)
-            => await Lookup((K)key);
+        async Task<IOrleansQueryResult<IIndexableGrain>> IIndexInterface.LookupAsync(object key)
+            => await this.LookupAsync((K)key);
     }
 }

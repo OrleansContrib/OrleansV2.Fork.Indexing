@@ -80,7 +80,7 @@ namespace Orleans.Indexing
             return e;
         }
 
-        public async Task Lookup(IOrleansQueryResultStream<V> result, K key)
+        public async Task LookupAsync(IOrleansQueryResultStream<V> result, K key)
         {
             logger.Trace($"Streamed index lookup called for key = {key}");
 
@@ -99,7 +99,7 @@ namespace Orleans.Indexing
             }
         }
 
-        public Task<IOrleansQueryResult<V>> Lookup(K key)
+        public Task<IOrleansQueryResult<V>> LookupAsync(K key)
         {
             logger.Trace($"ParentIndex {_parentIndexName}: Eager index lookup called for key = {key}");
 
@@ -111,7 +111,7 @@ namespace Orleans.Indexing
             return Task.FromResult((IOrleansQueryResult<V>)new OrleansQueryResult<V>(entryValues));
         }
 
-        public Task<V> LookupUnique(K key)
+        public Task<V> LookupUniqueAsync(K key)
         {
             if (!(state.IndexStatus == IndexStatus.Available))
             {
