@@ -95,6 +95,20 @@ namespace Orleans.Indexing.Tests
                             from item in QueryActiveGrains<TIGrain, TProperties>(runner) where item.Location == queryValue select item,
                             entry => entry.GetLocation());
 
+        internal static Tuple<IOrleansQueryable<TIGrain, TProperties>, Func<TIGrain, Task<int>>> QueryByPlayerScore<TIGrain, TProperties>(
+                        this IndexingTestRunnerBase runner, int queryValue)
+            where TIGrain : IPlayerGrain, IIndexableGrain where TProperties : IPlayerProperties
+            => Tuple.Create<IOrleansQueryable<TIGrain, TProperties>, Func<TIGrain, Task<int>>>(
+                            from item in QueryActiveGrains<TIGrain, TProperties>(runner) where item.Score == queryValue select item,
+                            entry => entry.GetScore());
+
+        internal static Tuple<IOrleansQueryable<TIGrain, TProperties>, Func<TIGrain, Task<int>>> QueryByPlayerScoreTxn<TIGrain, TProperties>(
+                        this IndexingTestRunnerBase runner, int queryValue)
+            where TIGrain : IPlayerGrainTransactional, IIndexableGrain where TProperties : IPlayerProperties
+            => Tuple.Create<IOrleansQueryable<TIGrain, TProperties>, Func<TIGrain, Task<int>>>(
+                            from item in QueryActiveGrains<TIGrain, TProperties>(runner) where item.Score == queryValue select item,
+                            entry => entry.GetScore());
+
         internal static Task<int> GetPlayerLocationCount<TIGrain, TProperties>(this IndexingTestRunnerBase runner, string location, int delayInMilliseconds = 0)
             where TIGrain : IPlayerGrain, IIndexableGrain where TProperties : IPlayerProperties
             => runner.CountItemsStreamingIn((r, v) => r.QueryByPlayerLocation<TIGrain, TProperties>(v), nameof(IPlayerProperties.Location), location, delayInMilliseconds);
@@ -102,6 +116,14 @@ namespace Orleans.Indexing.Tests
         internal static Task<int> GetPlayerLocationCountTxn<TIGrain, TProperties>(this IndexingTestRunnerBase runner, string location, int delayInMilliseconds = 0)
             where TIGrain : IPlayerGrainTransactional, IIndexableGrain where TProperties : IPlayerProperties
             => runner.CountItemsStreamingIn((r, v) => r.QueryByPlayerLocationTxn<TIGrain, TProperties>(v), nameof(IPlayerProperties.Location), location, delayInMilliseconds);
+
+        internal static Task<int> GetPlayerScoreCount<TIGrain, TProperties>(this IndexingTestRunnerBase runner, int score, int delayInMilliseconds = 0)
+            where TIGrain : IPlayerGrain, IIndexableGrain where TProperties : IPlayerProperties
+            => runner.CountItemsStreamingIn((r, v) => r.QueryByPlayerScore<TIGrain, TProperties>(v), nameof(IPlayerProperties.Score), score, delayInMilliseconds);
+
+        internal static Task<int> GetPlayerScoreCountTxn<TIGrain, TProperties>(this IndexingTestRunnerBase runner, int score, int delayInMilliseconds = 0)
+            where TIGrain : IPlayerGrainTransactional, IIndexableGrain where TProperties : IPlayerProperties
+            => runner.CountItemsStreamingIn((r, v) => r.QueryByPlayerScoreTxn<TIGrain, TProperties>(v), nameof(IPlayerProperties.Score), score, delayInMilliseconds);
 
         #endregion PlayerGrain
 

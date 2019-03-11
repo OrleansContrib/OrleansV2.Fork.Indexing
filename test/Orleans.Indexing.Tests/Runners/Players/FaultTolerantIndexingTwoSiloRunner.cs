@@ -121,7 +121,7 @@ namespace Orleans.Indexing.Tests
         /// <summary>
         /// Tests basic transactional functionality of HashIndexPartitionedPerKey
         /// </summary>
-        [Fact, TestCategory("BVT"), TestCategory("Indexing")]
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
         public async Task Test_Indexing_IndexLookup4_Txn()
         {
             var p1 = base.GetGrain<IPlayer3GrainTransactional>(1);

@@ -87,7 +87,7 @@ namespace Orleans.Indexing.Facet
         /// <param name="updateReason">Determines whether this method is called upon activation, deactivation, or still-active state of this grain</param>
         /// <param name="onlyUpdateActiveIndexes">whether only active indexes should be updated</param>
         /// <param name="writeStateIfConstraintsAreNotViolated">whether to write back the state to the storage if no constraint is violated</param>
-        private protected Task UpdateIndexes(IndexUpdateReason updateReason, bool onlyUpdateActiveIndexes, bool writeStateIfConstraintsAreNotViolated)
+        private protected async Task<InterfaceToUpdatesMap> UpdateIndexes(IndexUpdateReason updateReason, bool onlyUpdateActiveIndexes, bool writeStateIfConstraintsAreNotViolated)
         {
             // A flag to determine whether only unique indexes were updated
             var onlyUniqueIndexesWereUpdated = this._hasAnyUniqueIndex;
@@ -97,8 +97,9 @@ namespace Orleans.Indexing.Facet
                 out var updateIndexesEagerly, ref onlyUniqueIndexesWereUpdated, out var numberOfUniqueIndexesUpdated);
 
             // Apply the updates to the indexes defined on this grain
-            return this.ApplyIndexUpdates(interfaceToUpdatesMap, updateIndexesEagerly,
+            await this.ApplyIndexUpdates(interfaceToUpdatesMap, updateIndexesEagerly,
                 onlyUniqueIndexesWereUpdated, numberOfUniqueIndexesUpdated, writeStateIfConstraintsAreNotViolated);
+            return interfaceToUpdatesMap;
         }
 
         /// <summary>

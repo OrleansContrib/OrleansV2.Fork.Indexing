@@ -18,16 +18,17 @@ namespace Orleans.Indexing.Tests
         public const string Yazd = "Yazd";
 
         public const string LocationProperty = nameof(IPlayerProperties.Location);
+        public const string ScoreProperty = nameof(IPlayerProperties.Score);
         public const string NameProperty = nameof(IPersonProperties.Name);
         public const string AgeProperty = nameof(IPersonProperties.Age);
         public const string TitleProperty = nameof(IJobProperties.Title);
         public const string DepartmentProperty = nameof(IJobProperties.Department);
         public const string EmployeeIdProperty = nameof(IEmployeeProperties.EmployeeId);
 
-        public const string UniqueIntProperty = "UniqueInt";
-        public const string UniqueStringProperty = "UniqueString";
-        public const string NonUniqueIntProperty = "NonUniqueInt";
-        public const string NonUniqueStringProperty = "NonUniqueString";
+        public const string UniqueIntProperty = nameof(ITestMultiIndexProperties.UniqueInt);
+        public const string UniqueStringProperty = nameof(ITestMultiIndexProperties.UniqueString);
+        public const string NonUniqueIntProperty = nameof(ITestMultiIndexProperties.NonUniqueInt);
+        public const string NonUniqueStringProperty = nameof(ITestMultiIndexProperties.NonUniqueString);
 
         public const int DelayUntilIndexesAreUpdatedLazily = 1000; // One-second delay for writes to the in-memory indexes should be enough
     }

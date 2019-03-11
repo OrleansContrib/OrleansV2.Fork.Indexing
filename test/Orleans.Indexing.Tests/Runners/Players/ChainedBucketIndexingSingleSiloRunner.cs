@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -23,15 +24,16 @@ namespace Orleans.Indexing.Tests
             IPlayerChain1Grain p1 = base.GetGrain<IPlayerChain1Grain>(1);
             await p1.SetLocation(ITC.Seattle);
 
-            IPlayerChain1Grain p2 = base.GetGrain<IPlayerChain1Grain>(2);
-            IPlayerChain1Grain p3 = base.GetGrain<IPlayerChain1Grain>(3);
-            IPlayerChain1Grain p4 = base.GetGrain<IPlayerChain1Grain>(4);
-            IPlayerChain1Grain p5 = base.GetGrain<IPlayerChain1Grain>(5);
-            IPlayerChain1Grain p6 = base.GetGrain<IPlayerChain1Grain>(6);
-            IPlayerChain1Grain p7 = base.GetGrain<IPlayerChain1Grain>(7);
-            IPlayerChain1Grain p8 = base.GetGrain<IPlayerChain1Grain>(8);
-            IPlayerChain1Grain p9 = base.GetGrain<IPlayerChain1Grain>(9);
-            IPlayerChain1Grain p10 = base.GetGrain<IPlayerChain1Grain>(10);
+            // MaxEntriesPerBucket == 5
+            var p2 = base.GetGrain<IPlayerChain1Grain>(2);
+            var p3 = base.GetGrain<IPlayerChain1Grain>(3);
+            var p4 = base.GetGrain<IPlayerChain1Grain>(4);
+            var p5 = base.GetGrain<IPlayerChain1Grain>(5);
+            var p6 = base.GetGrain<IPlayerChain1Grain>(6);
+            var p7 = base.GetGrain<IPlayerChain1Grain>(7);
+            var p8 = base.GetGrain<IPlayerChain1Grain>(8);
+            var p9 = base.GetGrain<IPlayerChain1Grain>(9);
+            var p10 = base.GetGrain<IPlayerChain1Grain>(10);
 
             await p2.SetLocation(ITC.SanJose);
             await p3.SetLocation(ITC.SanFrancisco);
@@ -59,6 +61,17 @@ namespace Orleans.Indexing.Tests
 
             p10 = base.GetGrain<IPlayerChain1Grain>(10);
             Assert.Equal(ITC.Kirkland, await p10.GetLocation());
+
+            p8 = base.GetGrain<IPlayerChain1Grain>(8);
+            p9 = base.GetGrain<IPlayerChain1Grain>(9);
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+            Assert.Equal(4, await getLocationCount(ITC.Kirkland));
+
+            // Test updates
+            await p2.SetLocation(ITC.Yazd);
+
+            Assert.Equal(0, await getLocationCount(ITC.SanJose));
+            Assert.Equal(1, await getLocationCount(ITC.Yazd));
         }
 
         /// <summary>
@@ -92,16 +105,104 @@ namespace Orleans.Indexing.Tests
         }
 
         /// <summary>
+        /// Tests basic functionality of HashIndexSingleBucket with chained buckets
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing")]
+        public async Task Test_Indexing_IndexUpdate3()
+        {
+            // MaxEntriesPerBucket == 5
+            var grains = (await Task.WhenAll(Enumerable.Range(0, 20).Select(async ii =>
+            {
+                var grain = base.GetGrain<IPlayerChain1Grain>(ii);
+                await grain.SetLocation(ITC.Seattle);
+                return grain;
+            }))).ToArray();
+
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayerChain1Grain>(ITC.LocationProperty);
+
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayerChain1Grain, PlayerChain1Properties>(location);
+
+            Assert.Equal(20, await getLocationCount(ITC.Seattle));
+
+            for (var ii = 19; ii >= 9; ii -= 2)
+            {
+                await grains[ii].SetLocation(ITC.Redmond);
+            }
+
+            Assert.Equal(14, await getLocationCount(ITC.Seattle));
+            Assert.Equal(6, await getLocationCount(ITC.Redmond));
+        }
+
+        /// <summary>
+        /// Tests basic functionality of HashIndexSingleBucket with chained buckets
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_Indexing_IndexUpdate3_Txn()
+        {
+            // MaxEntriesPerBucket == 5
+            var grains = (await Task.WhenAll(Enumerable.Range(0, 20).Select(async ii =>
+            {
+                var grain = base.GetGrain<IPlayerChain1GrainTransactional>(ii);
+                await grain.SetLocation(ITC.Seattle);
+                return grain;
+            }))).ToArray();
+
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayerChain1GrainTransactional>(ITC.LocationProperty);
+
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<IPlayerChain1GrainTransactional, PlayerChain1PropertiesTransactional>(location);
+
+            Assert.Equal(20, await getLocationCount(ITC.Seattle));
+
+            for (var ii = 19; ii >= 9; ii -= 2)
+            {
+                await grains[ii].SetLocation(ITC.Redmond);
+            }
+
+            Assert.Equal(14, await getLocationCount(ITC.Seattle));
+            Assert.Equal(6, await getLocationCount(ITC.Redmond));
+        }
+
+        /// <summary>
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_Indexing_IndexLookup4()
         {
-            IPlayer3GrainNonFaultTolerant p1 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(1);
+            var p1 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(1);
             await p1.SetLocation(ITC.Seattle);
 
-            IPlayer3GrainNonFaultTolerant p2 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(2);
-            IPlayer3GrainNonFaultTolerant p3 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(3);
+            var p2 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(2);
+            var p3 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(3);
+
+            await p2.SetLocation(ITC.Seattle);
+            await p3.SetLocation(ITC.SanFrancisco);
+
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer3GrainNonFaultTolerant>(ITC.LocationProperty);
+
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer3GrainNonFaultTolerant, Player3PropertiesNonFaultTolerant>(location);
+
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+
+            await p2.Deactivate();
+            Thread.Sleep(1000);
+            Assert.Equal(1, await getLocationCount(ITC.Seattle));
+
+            p2 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(2);
+            Assert.Equal(ITC.Seattle, await p2.GetLocation());
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+        }
+
+        /// <summary>
+        /// Tests basic functionality of HashIndexPartitionedPerKey
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_Indexing_IndexLookup4_Txn()
+        {
+            var p1 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(1);
+            await p1.SetLocation(ITC.Seattle);
+
+            var p2 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(2);
+            var p3 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(3);
 
             await p2.SetLocation(ITC.Seattle);
             await p3.SetLocation(ITC.SanFrancisco);

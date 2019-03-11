@@ -4,7 +4,7 @@ namespace Orleans.Indexing.Tests
     {
         public int Score { get; set; }
 
-        [TotalIndex(IsEager = true)]
+        [TotalIndex(TotalIndexType.HashIndexSingleBucket, IsEager = true)]
         public string Location { get; set; }
     }
 

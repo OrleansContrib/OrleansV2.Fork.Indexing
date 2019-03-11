@@ -13,6 +13,7 @@ namespace Orleans.Indexing.Facet
                                                    ITransactionalIndexedState<TGrainState> where TGrainState : class, new()
     {
         ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState;
+        bool isStateInitialized = false;
 
         public TransactionalIndexedState(
                 IServiceProvider sp,
@@ -53,8 +54,7 @@ namespace Orleans.Indexing.Facet
         {
             return this.transactionalState.PerformRead(wrappedState =>
             {
-                // State initialization is deferred as we must be in a transaction context to access it.
-                wrappedState.EnsureNullValues(base._grainIndexes.PropertyNullValues);
+                this.EnsureStateInitialized(wrappedState);
                 return readFunction(wrappedState.UserState);
             });
         }
@@ -64,21 +64,31 @@ namespace Orleans.Indexing.Facet
             // TransactionalState does the grain-state write here as well as the update, then we do athe index updates.
             var result = await this.transactionalState.PerformUpdate(wrappedState =>
             {
-                // State initialization is deferred as we must be in a transaction context to access it.
-                if (!wrappedState.AreNullValuesInitialized)
-                {
-                    wrappedState.EnsureNullValues(base._grainIndexes.PropertyNullValues);
-                    base._grainIndexes.AddMissingBeforeImages(wrappedState.UserState);
-                }
+                this.EnsureStateInitialized(wrappedState);
                 var res = updateFunction(wrappedState.UserState);
                 this._grainIndexes.MapStateToProperties(wrappedState.UserState);
                 return res;
             });
-            await base.UpdateIndexes(IndexUpdateReason.WriteState, onlyUpdateActiveIndexes: false, writeStateIfConstraintsAreNotViolated: true);
+
+            var interfaceToUpdatesMap = await base.UpdateIndexes(IndexUpdateReason.WriteState, onlyUpdateActiveIndexes: false, writeStateIfConstraintsAreNotViolated: true);
+
+            // If everything was successful, the before images are updated
+            base.UpdateBeforeImages(interfaceToUpdatesMap);
             return result;
         }
 
         #endregion public API
+
+        void EnsureStateInitialized(IndexedGrainStateWrapper<TGrainState> wrappedState)
+        {
+            // State initialization is deferred as we must be in a transaction context to access it.
+            if (!isStateInitialized)
+            {
+                wrappedState.EnsureNullValues(base._grainIndexes.PropertyNullValues);
+                base._grainIndexes.AddMissingBeforeImages(wrappedState.UserState);
+                isStateInitialized = true;
+            }
+        }
 
         /// <summary>
         /// Applies a set of updates to the indexes defined on the grain
