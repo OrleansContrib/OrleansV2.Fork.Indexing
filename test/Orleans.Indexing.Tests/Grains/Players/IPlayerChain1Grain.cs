@@ -5,7 +5,7 @@ namespace Orleans.Indexing.Tests
         [Index(IsEager = true, NullValue = "0")]
         public int Score { get; set; }
         
-        [TotalIndex(TotalIndexType.HashIndexSingleBucket, IsEager = true, MaxEntriesPerBucket = 5)]
+        [ActiveIndex(ActiveIndexType.HashIndexSingleBucket, IsEager = true, MaxEntriesPerBucket = 5)]
         public string Location { get; set; }
     }
 

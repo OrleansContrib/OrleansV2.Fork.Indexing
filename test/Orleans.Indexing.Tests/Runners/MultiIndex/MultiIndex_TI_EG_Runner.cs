@@ -1,5 +1,5 @@
 using Orleans.Indexing.Facet;
-using Orleans.Providers;
+using Orleans.Transactions.Abstractions;
 using System;
 using System.Threading.Tasks;
 using Xunit;
@@ -9,7 +9,7 @@ namespace Orleans.Indexing.Tests
 {
     #region PartitionedPerKey
 
-    // NFT only; FT cannot be configured to be Eager.
+    // NFT and TXN only; FT cannot be configured to be Eager.
 
     public class NFT_Props_UIUSNINS_TI_EG_PK : ITestMultiIndexProperties
     {
@@ -26,7 +26,15 @@ namespace Orleans.Indexing.Tests
         public string NonUniqueString { get; set; }
     }
 
+    public class TXN_Props_UIUSNINS_TI_EG_PK : NFT_Props_UIUSNINS_TI_EG_PK
+    {
+    }
+
     public interface INFT_Grain_UIUSNINS_TI_EG_PK : ITestMultiIndexGrain, IIndexableGrain<NFT_Props_UIUSNINS_TI_EG_PK>
+    {
+    }
+
+    public interface ITXN_Grain_UIUSNINS_TI_EG_PK : ITestMultiIndexGrainTransactional, IIndexableGrain<TXN_Props_UIUSNINS_TI_EG_PK>
     {
     }
 
@@ -36,6 +44,16 @@ namespace Orleans.Indexing.Tests
             [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<TestMultiIndexState> indexedState)
             : base(indexedState) { }
+    }
+
+    public class TXN_Grain_UIUSNINS_TI_EG_PK : TestMultiIndexGrainTransactional<TestMultiIndexState>, ITXN_Grain_UIUSNINS_TI_EG_PK
+    {
+        public TXN_Grain_UIUSNINS_TI_EG_PK(
+            [TransactionalIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            IIndexedState<TestMultiIndexState> indexedState,
+            [TransactionalState(IndexingTestConstants.TestGrainState, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
+            ITransactionalState<IndexedGrainStateWrapper<TestMultiIndexState>> transactionalState)
+            : base(indexedState, transactionalState) { }
     }
     #endregion // PartitionedPerKey
 
@@ -47,7 +65,7 @@ namespace Orleans.Indexing.Tests
 
     #region SingleBucket
 
-    // NFT only; FT cannot be configured to be Eager.
+    // NFT and TXN only; FT cannot be configured to be Eager.
 
     public class NFT_Props_UIUSNINS_TI_EG_SB : ITestMultiIndexProperties
     {
@@ -64,7 +82,15 @@ namespace Orleans.Indexing.Tests
         public string NonUniqueString { get; set; }
     }
 
+    public class TXN_Props_UIUSNINS_TI_EG_SB : NFT_Props_UIUSNINS_TI_EG_SB
+    {
+    }
+
     public interface INFT_Grain_UIUSNINS_TI_EG_SB : ITestMultiIndexGrain, IIndexableGrain<NFT_Props_UIUSNINS_TI_EG_SB>
+    {
+    }
+
+    public interface ITXN_Grain_UIUSNINS_TI_EG_SB : ITestMultiIndexGrainTransactional, IIndexableGrain<TXN_Props_UIUSNINS_TI_EG_SB>
     {
     }
 
@@ -74,6 +100,16 @@ namespace Orleans.Indexing.Tests
             [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<TestMultiIndexState> indexedState)
             : base(indexedState) { }
+    }
+
+    public class TXN_Grain_UIUSNINS_TI_EG_SB : TestMultiIndexGrainTransactional<TestMultiIndexState>, ITXN_Grain_UIUSNINS_TI_EG_SB
+    {
+        public TXN_Grain_UIUSNINS_TI_EG_SB(
+            [TransactionalIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            IIndexedState<TestMultiIndexState> indexedState,
+            [TransactionalState(IndexingTestConstants.TestGrainState, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
+            ITransactionalState<IndexedGrainStateWrapper<TestMultiIndexState>> transactionalState)
+            : base(indexedState, transactionalState) { }
     }
     #endregion // SingleBucket
 
@@ -90,10 +126,22 @@ namespace Orleans.Indexing.Tests
             await base.TestIndexesWithDeactivations<INFT_Grain_UIUSNINS_TI_EG_PK, NFT_Props_UIUSNINS_TI_EG_PK>();
         }
 
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_TXN_Grain_UIUSNINS_TI_EG_PK()
+        {
+            await base.TestIndexesWithDeactivationsTxn<ITXN_Grain_UIUSNINS_TI_EG_PK, TXN_Props_UIUSNINS_TI_EG_PK>();
+        }
+
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_NFT_Grain_UIUSNINS_TI_EG_SB()
         {
             await base.TestIndexesWithDeactivations<INFT_Grain_UIUSNINS_TI_EG_SB, NFT_Props_UIUSNINS_TI_EG_SB>();
+        }
+
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_TXN_Grain_UIUSNINS_TI_EG_SB()
+        {
+            await base.TestIndexesWithDeactivationsTxn<ITXN_Grain_UIUSNINS_TI_EG_SB, TXN_Props_UIUSNINS_TI_EG_SB>();
         }
 
         internal static Func<IndexingTestRunnerBase, int, Task>[] GetAllTestTasks()
@@ -101,7 +149,9 @@ namespace Orleans.Indexing.Tests
             return new Func<IndexingTestRunnerBase, int, Task>[]
             {
                 (baseRunner, intAdjust) => baseRunner.TestIndexesWithDeactivations<INFT_Grain_UIUSNINS_TI_EG_PK, NFT_Props_UIUSNINS_TI_EG_PK>(intAdjust),
-                (baseRunner, intAdjust) => baseRunner.TestIndexesWithDeactivations<INFT_Grain_UIUSNINS_TI_EG_SB, NFT_Props_UIUSNINS_TI_EG_SB>(intAdjust)
+                (baseRunner, intAdjust) => baseRunner.TestIndexesWithDeactivationsTxn<ITXN_Grain_UIUSNINS_TI_EG_PK, TXN_Props_UIUSNINS_TI_EG_PK>(intAdjust),
+                (baseRunner, intAdjust) => baseRunner.TestIndexesWithDeactivations<INFT_Grain_UIUSNINS_TI_EG_SB, NFT_Props_UIUSNINS_TI_EG_SB>(intAdjust),
+                (baseRunner, intAdjust) => baseRunner.TestIndexesWithDeactivationsTxn<ITXN_Grain_UIUSNINS_TI_EG_SB, TXN_Props_UIUSNINS_TI_EG_SB>(intAdjust)
             };
         }
     }

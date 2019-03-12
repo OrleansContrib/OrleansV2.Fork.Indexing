@@ -43,7 +43,7 @@ namespace Orleans.Indexing.Tests
         internal Task<TResult> GetProperty<TResult>(Func<TGrainState, TResult> readFunction)
             => this.IndexedState.PerformRead(readFunction);
 
-        internal Task SetProperty(Action<TGrainState> setterAction, bool retry)
+        internal Task SetAndWritePropertyAsync(Action<TGrainState> setterAction, bool retry)
             => IndexingTestUtils.SetPropertyAndWriteStateAsync(setterAction, this.IndexedState, retry);
     }
 }

@@ -15,11 +15,12 @@ namespace Orleans.Indexing
     {
         private object _befImg;
         private object _aftImg;
-        private IndexOperationType _opType;
+
+        public IndexUpdateMode UpdateMode => IndexUpdateMode.NonTentative;
 
         public MemberUpdate(object befImg, object aftImg, IndexOperationType opType)
         {
-            this._opType = opType;
+            this.OperationType = opType;
             if (opType == IndexOperationType.Update || opType == IndexOperationType.Delete)
             {
                 this._befImg = befImg;
@@ -38,38 +39,24 @@ namespace Orleans.Indexing
         {
             if (befImg == null)
             {
-                if (aftImg == null) return IndexOperationType.None;
-                else return IndexOperationType.Insert;
+                return (aftImg == null) ? IndexOperationType.None : IndexOperationType.Insert;
             }
-            else
-            {
-                if (aftImg == null) return IndexOperationType.Delete;
-                else if (befImg.Equals(aftImg)) return IndexOperationType.None;
-                else return IndexOperationType.Update;
-            }
+            return aftImg == null
+                ? IndexOperationType.Delete
+                : befImg.Equals(aftImg) ? IndexOperationType.None : IndexOperationType.Update;
         }
 
         /// <summary>
         /// Exposes the stored before-image.
         /// </summary>
-        /// <returns>the before-image of the indexed attribute(s)
-        /// that is before applying the current update</returns>
-        public object GetBeforeImage()
-        {
-            return (this._opType == IndexOperationType.Update || this._opType == IndexOperationType.Delete) ? this._befImg : null;
-        }
+        /// <returns>the before-image of the indexed attribute(s) that is before applying the current update</returns>
+        public object GetBeforeImage() => (this.OperationType == IndexOperationType.Update || this.OperationType == IndexOperationType.Delete) ? this._befImg : null;
 
-        public object GetAfterImage()
-        {
-            return (this._opType == IndexOperationType.Update || this._opType == IndexOperationType.Insert) ? this._aftImg : null;
-        }
+        public object GetAfterImage() => (this.OperationType == IndexOperationType.Update || this.OperationType == IndexOperationType.Insert) ? this._aftImg : null;
 
-        public IndexOperationType OperationType => this._opType;
+        public IndexOperationType OperationType { get; }
 
-        public override string ToString()
-        {
-            return ToString(this);
-        }
+        public override string ToString() => ToString(this);
 
         internal static string ToString(IMemberUpdate update)
         {
@@ -85,21 +72,11 @@ namespace Orleans.Indexing
 
         internal static string UpdatesToString(IDictionary<IIndexableGrain, IList<IMemberUpdate>> iUpdates)
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
             foreach (var grainUpdate in iUpdates)
             {
                 sb.Append(Environment.NewLine).Append(grainUpdate.Key).Append(" =>");
-                sb.Append(UpdatesToString(grainUpdate.Value));
-            }
-            return sb.ToString();
-        }
-
-        internal static string UpdatesToString(IList<IMemberUpdate> updates)
-        {
-            StringBuilder sb = new StringBuilder();
-            foreach (var updt in updates)
-            {
-                sb.Append(Environment.NewLine).Append("\t").Append(updt);
+                grainUpdate.Value.ForEach(updt => sb.Append(Environment.NewLine).Append("\t").Append(updt));
             }
             return sb.ToString();
         }

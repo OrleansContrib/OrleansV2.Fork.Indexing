@@ -4,12 +4,13 @@ using Xunit;
 using Xunit.Abstractions;
 using Orleans.Indexing.Facet;
 using System.Collections.Generic;
+using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing.Tests.MultiInterface
 {
     #region PartitionedPerKey
 
-    // NFT only; FT cannot be configured to be Eager.
+    // NFT and TXN only; FT cannot be configured to be Eager.
 
     public class NFT_Props_Person_TI_EG_PK : IPersonProperties
     {
@@ -35,6 +36,18 @@ namespace Orleans.Indexing.Tests.MultiInterface
         public int EmployeeId { get; set; }
     }
 
+    public class TXN_Props_Person_TI_EG_PK : NFT_Props_Person_TI_EG_PK
+    {
+    }
+
+    public class TXN_Props_Job_TI_EG_PK : NFT_Props_Job_TI_EG_PK
+    {
+    }
+
+    public class TXN_Props_Employee_TI_EG_PK : NFT_Props_Employee_TI_EG_PK
+    {
+    }
+
     public interface INFT_Grain_Person_TI_EG_PK : IIndexableGrain<NFT_Props_Person_TI_EG_PK>, IPersonGrain, IGrainWithIntegerKey
     {
     }
@@ -47,6 +60,18 @@ namespace Orleans.Indexing.Tests.MultiInterface
     {
     }
 
+    public interface ITXN_Grain_Person_TI_EG_PK : IIndexableGrain<NFT_Props_Person_TI_EG_PK>, IPersonGrain, IGrainWithIntegerKey, ITestTransactionalPersistence
+    {
+    }
+
+    public interface ITXN_Grain_Job_TI_EG_PK : IIndexableGrain<NFT_Props_Job_TI_EG_PK>, IJobGrain, IGrainWithIntegerKey
+    {
+    }
+
+    public interface ITXN_Grain_Employee_TI_EG_PK : IIndexableGrain<NFT_Props_Employee_TI_EG_PK>, IEmployeeGrain, IGrainWithIntegerKey
+    {
+    }
+
     public class NFT_Grain_Employee_TI_EG_PK : TestEmployeeGrain<EmployeeGrainState>,
                                                INFT_Grain_Person_TI_EG_PK, INFT_Grain_Job_TI_EG_PK, INFT_Grain_Employee_TI_EG_PK
     {
@@ -54,6 +79,17 @@ namespace Orleans.Indexing.Tests.MultiInterface
             [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<EmployeeGrainState> indexedState)
             : base(indexedState) { }
+    }
+
+    public class TXN_Grain_Employee_TI_EG_PK : TestEmployeeGrain<EmployeeGrainState>,
+                                               ITXN_Grain_Person_TI_EG_PK, ITXN_Grain_Job_TI_EG_PK, ITXN_Grain_Employee_TI_EG_PK
+    {
+        public TXN_Grain_Employee_TI_EG_PK(
+            [TransactionalIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            IIndexedState<EmployeeGrainState> indexedState,
+            [TransactionalState(IndexingTestConstants.TestGrainState, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
+            ITransactionalState<IndexedGrainStateWrapper<EmployeeGrainState>> transactionalState)
+            : base(indexedState, transactionalState) { }
     }
     #endregion // PartitionedPerKey
 
@@ -65,7 +101,7 @@ namespace Orleans.Indexing.Tests.MultiInterface
 
     #region SingleBucket
 
-    // NFT only; FT cannot be configured to be Eager.
+    // NFT and TXN only; FT cannot be configured to be Eager.
 
     public class NFT_Props_Person_TI_EG_SB : IPersonProperties
     {
@@ -91,6 +127,18 @@ namespace Orleans.Indexing.Tests.MultiInterface
         public int EmployeeId { get; set; }
     }
 
+    public class TXN_Props_Person_TI_EG_SB : NFT_Props_Person_TI_EG_SB
+    {
+    }
+
+    public class TXN_Props_Job_TI_EG_SB : NFT_Props_Job_TI_EG_SB
+    {
+    }
+
+    public class TXN_Props_Employee_TI_EG_SB : NFT_Props_Employee_TI_EG_SB
+    {
+    }
+
     public interface INFT_Grain_Person_TI_EG_SB : IIndexableGrain<NFT_Props_Person_TI_EG_SB>, IPersonGrain, IGrainWithIntegerKey
     {
     }
@@ -103,6 +151,18 @@ namespace Orleans.Indexing.Tests.MultiInterface
     {
     }
 
+    public interface ITXN_Grain_Person_TI_EG_SB : IIndexableGrain<NFT_Props_Person_TI_EG_SB>, IPersonGrain, IGrainWithIntegerKey, ITestTransactionalPersistence
+    {
+    }
+
+    public interface ITXN_Grain_Job_TI_EG_SB : IIndexableGrain<NFT_Props_Job_TI_EG_SB>, IJobGrain, IGrainWithIntegerKey
+    {
+    }
+
+    public interface ITXN_Grain_Employee_TI_EG_SB : IIndexableGrain<NFT_Props_Employee_TI_EG_SB>, IEmployeeGrain, IGrainWithIntegerKey
+    {
+    }
+
     public class NFT_Grain_Employee_TI_EG_SB : TestEmployeeGrain<EmployeeGrainState>,
                                                INFT_Grain_Person_TI_EG_SB, INFT_Grain_Job_TI_EG_SB, INFT_Grain_Employee_TI_EG_SB
     {
@@ -110,6 +170,17 @@ namespace Orleans.Indexing.Tests.MultiInterface
             [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<EmployeeGrainState> indexedState)
             : base(indexedState) { }
+    }
+
+    public class TXN_Grain_Employee_TI_EG_SB : TestEmployeeGrain<EmployeeGrainState>,
+                                               ITXN_Grain_Person_TI_EG_SB, ITXN_Grain_Job_TI_EG_SB, ITXN_Grain_Employee_TI_EG_SB
+    {
+        public TXN_Grain_Employee_TI_EG_SB(
+            [TransactionalIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            IIndexedState<EmployeeGrainState> indexedState,
+            [TransactionalState(IndexingTestConstants.TestGrainState, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
+            ITransactionalState<IndexedGrainStateWrapper<EmployeeGrainState>> transactionalState)
+            : base(indexedState, transactionalState) { }
     }
     #endregion // SingleBucket
 
@@ -128,12 +199,28 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                             INFT_Grain_Employee_TI_EG_PK, NFT_Props_Employee_TI_EG_PK>();
         }
 
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_TXN_Grain_Employee_TI_EG_PK()
+        {
+            await base.TestEmployeeIndexesWithDeactivations<ITXN_Grain_Person_TI_EG_PK, TXN_Props_Person_TI_EG_PK,
+                                                            ITXN_Grain_Job_TI_EG_PK, TXN_Props_Job_TI_EG_PK,
+                                                            ITXN_Grain_Employee_TI_EG_PK, TXN_Props_Employee_TI_EG_PK>();
+        }
+
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_NFT_Grain_Employee_TI_EG_SB()
         {
             await base.TestEmployeeIndexesWithDeactivations<INFT_Grain_Person_TI_EG_SB, NFT_Props_Person_TI_EG_SB,
                                                             INFT_Grain_Job_TI_EG_SB, NFT_Props_Job_TI_EG_SB,
                                                             INFT_Grain_Employee_TI_EG_SB, NFT_Props_Employee_TI_EG_SB>();
+        }
+
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_TXN_Grain_Employee_TI_EG_SB()
+        {
+            await base.TestEmployeeIndexesWithDeactivations<ITXN_Grain_Person_TI_EG_SB, TXN_Props_Person_TI_EG_SB,
+                                                            ITXN_Grain_Job_TI_EG_SB, TXN_Props_Job_TI_EG_SB,
+                                                            ITXN_Grain_Employee_TI_EG_SB, TXN_Props_Employee_TI_EG_SB>();
         }
 
         internal static IEnumerable<Func<IndexingTestRunnerBase, int, Task>> GetAllTestTasks(TestIndexPartitionType testIndexTypes)
@@ -144,6 +231,10 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                             INFT_Grain_Person_TI_EG_PK, NFT_Props_Person_TI_EG_PK,
                                                             INFT_Grain_Job_TI_EG_PK, NFT_Props_Job_TI_EG_PK,
                                                             INFT_Grain_Employee_TI_EG_PK, NFT_Props_Employee_TI_EG_PK>(intAdjust);
+                yield return (baseRunner, intAdjust) => baseRunner.TestEmployeeIndexesWithDeactivations<
+                                                            ITXN_Grain_Person_TI_EG_PK, TXN_Props_Person_TI_EG_PK,
+                                                            ITXN_Grain_Job_TI_EG_PK, TXN_Props_Job_TI_EG_PK,
+                                                            ITXN_Grain_Employee_TI_EG_PK, TXN_Props_Employee_TI_EG_PK>(intAdjust);
             }
             if (testIndexTypes.HasFlag(TestIndexPartitionType.SingleBucket))
             {
@@ -151,6 +242,10 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                             INFT_Grain_Person_TI_EG_SB, NFT_Props_Person_TI_EG_SB,
                                                             INFT_Grain_Job_TI_EG_SB, NFT_Props_Job_TI_EG_SB,
                                                             INFT_Grain_Employee_TI_EG_SB, NFT_Props_Employee_TI_EG_SB>(intAdjust);
+                yield return (baseRunner, intAdjust) => baseRunner.TestEmployeeIndexesWithDeactivations<
+                                                            ITXN_Grain_Person_TI_EG_SB, TXN_Props_Person_TI_EG_SB,
+                                                            ITXN_Grain_Job_TI_EG_SB, TXN_Props_Job_TI_EG_SB,
+                                                            ITXN_Grain_Employee_TI_EG_SB, TXN_Props_Employee_TI_EG_SB>(intAdjust);
             }
         }
     }

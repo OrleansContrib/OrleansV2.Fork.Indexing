@@ -108,12 +108,12 @@ namespace Orleans.Indexing
                 : Convert.ChangeType(value, propertyType, CultureInfo.InvariantCulture);
         }
 
-        internal static void ForEach<T>(this IEnumerable<T> enumerable, Action<T> mutator)
+        internal static void ForEach<T>(this IEnumerable<T> enumerable, Action<T> action)
         {
             // Simple but allows chaining
             foreach (var item in enumerable)
             {
-                mutator(item);
+                action(item);
             }
         }
 

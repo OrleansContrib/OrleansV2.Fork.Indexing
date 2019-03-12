@@ -11,7 +11,7 @@ namespace Orleans.Indexing.Tests
         public Player3GrainTransactional(
             [TransactionalIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<PlayerGrainState> indexedState,
-            [TransactionalState(IndexingConstants.BucketStateName, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
+            [TransactionalState(IndexingTestConstants.TestGrainState, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
             ITransactionalState<IndexedGrainStateWrapper<PlayerGrainState>> transactionalState)
             : base(indexedState, transactionalState) { }
     }

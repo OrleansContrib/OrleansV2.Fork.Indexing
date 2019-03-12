@@ -67,8 +67,8 @@ namespace Orleans.Indexing
                         }
                         else
                         {
-                            AddUpdateToBucket(g, befImgHash, new MemberUpdateOverridenOperation(update, IndexOperationType.Delete));
-                            AddUpdateToBucket(g, aftImgHash, new MemberUpdateOverridenOperation(update, IndexOperationType.Insert));
+                            AddUpdateToBucket(g, befImgHash, new MemberUpdateOverriddenOperation(update, IndexOperationType.Delete));
+                            AddUpdateToBucket(g, aftImgHash, new MemberUpdateOverriddenOperation(update, IndexOperationType.Insert));
                         }
                     }
                     else if (opType == IndexOperationType.Insert)
@@ -116,8 +116,8 @@ namespace Orleans.Indexing
                 }
 
                 BucketT aftImgBucket = this.GetBucketGrain(aftImgHash);
-                var befTask = befImgBucket.DirectApplyIndexUpdate(g, new MemberUpdateOverridenOperation(iUpdate.Value, IndexOperationType.Delete).AsImmutable<IMemberUpdate>(), isUniqueIndex, idxMetaData);
-                var aftTask = aftImgBucket.DirectApplyIndexUpdate(g, new MemberUpdateOverridenOperation(iUpdate.Value, IndexOperationType.Insert).AsImmutable<IMemberUpdate>(), isUniqueIndex, idxMetaData);
+                var befTask = befImgBucket.DirectApplyIndexUpdate(g, new MemberUpdateOverriddenOperation(iUpdate.Value, IndexOperationType.Delete).AsImmutable<IMemberUpdate>(), isUniqueIndex, idxMetaData);
+                var aftTask = aftImgBucket.DirectApplyIndexUpdate(g, new MemberUpdateOverriddenOperation(iUpdate.Value, IndexOperationType.Insert).AsImmutable<IMemberUpdate>(), isUniqueIndex, idxMetaData);
                 bool[] results = await Task.WhenAll(befTask, aftTask);
                 return results[0] && results[1];
             }

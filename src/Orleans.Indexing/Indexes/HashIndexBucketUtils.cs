@@ -35,7 +35,7 @@ namespace Orleans.Indexing
         {
             fixIndexUnavailableOnDelete = false;
 
-            var indexUpdateMode = update is MemberUpdateWithMode updateWithMode ? updateWithMode.UpdateMode : IndexUpdateMode.NonTentative;
+            var indexUpdateMode = update.UpdateMode;
             var opType = update.OperationType;
             HashIndexSingleBucketEntry<V> aftEntry;
 

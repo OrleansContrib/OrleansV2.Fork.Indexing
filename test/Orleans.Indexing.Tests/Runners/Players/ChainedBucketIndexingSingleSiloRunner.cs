@@ -21,7 +21,7 @@ namespace Orleans.Indexing.Tests
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_Indexing_IndexLookup1()
         {
-            IPlayerChain1Grain p1 = base.GetGrain<IPlayerChain1Grain>(1);
+            var p1 = base.GetGrain<IPlayerChain1Grain>(1);
             await p1.SetLocation(ITC.Seattle);
 
             // MaxEntriesPerBucket == 5
@@ -54,7 +54,7 @@ namespace Orleans.Indexing.Tests
 
             await p8.Deactivate();
             await p9.Deactivate();
-            Thread.Sleep(1000);
+            Thread.Sleep(ITC.DelayUntilIndexesAreUpdatedLazily);
 
             Assert.Equal(1, await getLocationCount(ITC.Seattle));
             Assert.Equal(3, await getLocationCount(ITC.Kirkland));
@@ -64,6 +64,8 @@ namespace Orleans.Indexing.Tests
 
             p8 = base.GetGrain<IPlayerChain1Grain>(8);
             p9 = base.GetGrain<IPlayerChain1Grain>(9);
+            Assert.Equal(ITC.Kirkland, await p8.GetLocation());     // Must call a method first before it is activated (and inserted into active indexes)
+            Assert.Equal(ITC.Seattle, await p9.GetLocation());
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
             Assert.Equal(4, await getLocationCount(ITC.Kirkland));
 
@@ -80,11 +82,11 @@ namespace Orleans.Indexing.Tests
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_Indexing_IndexLookup2()
         {
-            IPlayer2GrainNonFaultTolerant p1 = base.GetGrain<IPlayer2GrainNonFaultTolerant>(1);
+            var p1 = base.GetGrain<IPlayer2GrainNonFaultTolerant>(1);
             await p1.SetLocation(ITC.Tehran);
 
-            IPlayer2GrainNonFaultTolerant p2 = base.GetGrain<IPlayer2GrainNonFaultTolerant>(2);
-            IPlayer2GrainNonFaultTolerant p3 = base.GetGrain<IPlayer2GrainNonFaultTolerant>(3);
+            var p2 = base.GetGrain<IPlayer2GrainNonFaultTolerant>(2);
+            var p3 = base.GetGrain<IPlayer2GrainNonFaultTolerant>(3);
 
             await p2.SetLocation(ITC.Tehran);
             await p3.SetLocation(ITC.Yazd);
@@ -96,10 +98,11 @@ namespace Orleans.Indexing.Tests
             Assert.Equal(2, await getLocationCount(ITC.Tehran));
 
             await p2.Deactivate();
-            Thread.Sleep(1000);
+            Thread.Sleep(ITC.DelayUntilIndexesAreUpdatedLazily);
             Assert.Equal(1, await getLocationCount(ITC.Tehran));
 
             p2 = base.GetGrain<IPlayer2GrainNonFaultTolerant>(2);
+            Thread.Sleep(ITC.DelayUntilIndexesAreUpdatedLazily);
             Assert.Equal(ITC.Tehran, await p2.GetLocation());
             Assert.Equal(2, await getLocationCount(ITC.Tehran));
         }
@@ -184,12 +187,17 @@ namespace Orleans.Indexing.Tests
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
 
             await p2.Deactivate();
-            Thread.Sleep(1000);
+            Thread.Sleep(ITC.DelayUntilIndexesAreUpdatedLazily);
             Assert.Equal(1, await getLocationCount(ITC.Seattle));
 
             p2 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(2);
             Assert.Equal(ITC.Seattle, await p2.GetLocation());
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
+
+            // Test updates
+            await p2.SetLocation(ITC.SanFrancisco);
+            Assert.Equal(1, await getLocationCount(ITC.Seattle));
+            Assert.Equal(2, await getLocationCount(ITC.SanFrancisco));
         }
 
         /// <summary>
@@ -198,28 +206,33 @@ namespace Orleans.Indexing.Tests
         [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
         public async Task Test_Indexing_IndexLookup4_Txn()
         {
-            var p1 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(1);
+            var p1 = base.GetGrain<IPlayer3GrainTransactional>(1);
             await p1.SetLocation(ITC.Seattle);
 
-            var p2 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(2);
-            var p3 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(3);
+            var p2 = base.GetGrain<IPlayer3GrainTransactional>(2);
+            var p3 = base.GetGrain<IPlayer3GrainTransactional>(3);
 
             await p2.SetLocation(ITC.Seattle);
             await p3.SetLocation(ITC.SanFrancisco);
 
-            var locIdx = await base.GetAndWaitForIndex<string, IPlayer3GrainNonFaultTolerant>(ITC.LocationProperty);
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer3GrainTransactional>(ITC.LocationProperty);
 
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer3GrainNonFaultTolerant, Player3PropertiesNonFaultTolerant>(location);
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<IPlayer3GrainTransactional, Player3PropertiesTransactional>(location);
 
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
 
             await p2.Deactivate();
-            Thread.Sleep(1000);
-            Assert.Equal(1, await getLocationCount(ITC.Seattle));
+            Thread.Sleep(ITC.DelayUntilIndexesAreUpdatedLazily);
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));   // Transactional indexes are Total, so the count remains 2
 
-            p2 = base.GetGrain<IPlayer3GrainNonFaultTolerant>(2);
+            p2 = base.GetGrain<IPlayer3GrainTransactional>(2);
             Assert.Equal(ITC.Seattle, await p2.GetLocation());
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
+
+            // Test updates
+            await p2.SetLocation(ITC.SanFrancisco);
+            Assert.Equal(1, await getLocationCount(ITC.Seattle));
+            Assert.Equal(2, await getLocationCount(ITC.SanFrancisco));
         }
     }
 }

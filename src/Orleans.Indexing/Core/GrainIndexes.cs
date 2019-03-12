@@ -69,14 +69,16 @@ namespace Orleans.Indexing
         /// This method is called on activation of the grain, and when the UpdateIndexes method detects an inconsistency
         /// between the indexes in the index handler and the cached indexes of the current grain.
         /// </summary>
-        internal void AddMissingBeforeImages(object state)
+        internal void AddMissingBeforeImages(object state) => UpdateBeforeImages(state, force: false);
+
+        internal void UpdateBeforeImages(object state, bool force)
         {
             void addMissingBeforeImages(InterfaceIndexes indexes)
             {
                 var oldBefImgs = indexes.BeforeImages.Value;
 
                 object getImage(string indexName, IIndexUpdateGenerator upGen)
-                    => oldBefImgs.ContainsKey(indexName) ? oldBefImgs[indexName] : upGen.ExtractIndexImage(indexes.Properties);
+                    => !force && oldBefImgs.ContainsKey(indexName) ? oldBefImgs[indexName] : upGen.ExtractIndexImage(indexes.Properties);
 
                 indexes.BeforeImages = (indexes.NamedIndexes
                                                .ToDictionary(kvp => kvp.Key, kvp => getImage(kvp.Key, kvp.Value.UpdateGenerator)) as IDictionary<string, object>)

@@ -88,6 +88,50 @@ namespace Orleans.Indexing.Facet
         }
 
         /// <summary>
+        /// Eagerly Applies updates to the indexes defined on this grain
+        /// </summary>
+        /// <param name="interfaceToUpdatesMap">the dictionary of updates for each index of each interface</param>
+        /// <param name="updateIndexTypes">indicates whether unique and/or non-unique indexes should be updated</param>
+        /// <param name="isTentative">indicates whether updates to indexes should be tentatively done. That is, the update
+        ///     won't be visible to readers, but prevents writers from overwriting them and violating constraints</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private protected Task ApplyIndexUpdatesEagerly(InterfaceToUpdatesMap interfaceToUpdatesMap,
+                                                    UpdateIndexType updateIndexTypes, bool isTentative = false)
+            => Task.WhenAll(interfaceToUpdatesMap.Select(kvp => this.ApplyIndexUpdatesEagerly(kvp.Key, kvp.Value, updateIndexTypes, isTentative)));
+
+        /// <summary>
+        /// Eagerly Applies updates to the indexes defined on this grain for a single grain interface type implemented by this grain
+        /// </summary>
+        /// <param name="grainInterfaceType">a single indexable grain interface type implemented by this grain</param>
+        /// <param name="updates">the dictionary of updates for each index</param>
+        /// <param name="updateIndexTypes">indicates whether unique and/or non-unique indexes should be updated</param>
+        /// <param name="isTentative">indicates whether updates to indexes should be tentatively done. That is, the update
+        ///     won't be visible to readers, but prevents writers from overwriting them and violating constraints</param>
+        /// <returns></returns>
+        private protected Task ApplyIndexUpdatesEagerly(Type grainInterfaceType, IReadOnlyDictionary<string, IMemberUpdate> updates,
+                                                        UpdateIndexType updateIndexTypes, bool isTentative)
+        {
+            var indexInterfaces = this._grainIndexes[grainInterfaceType];
+            IEnumerable<Task<bool>> getUpdateTasks()
+            {
+                foreach (var (indexName, mu) in updates.Where(kvp => kvp.Value.OperationType != IndexOperationType.None))
+                {
+                    var indexInfo = indexInterfaces.NamedIndexes[indexName];
+                    if (updateIndexTypes.HasFlag(indexInfo.MetaData.IsUniqueIndex ? UpdateIndexType.Unique : UpdateIndexType.NonUnique))
+                    {
+                        // If the caller asks for the update to be tentative, then it will be wrapped inside a MemberUpdateTentative
+                        var updateToIndex = isTentative ? new MemberUpdateOverriddenMode(mu, IndexUpdateMode.Tentative) : mu;
+                        yield return indexInfo.IndexInterface.ApplyIndexUpdate(this.SiloIndexManager,
+                                             this.iIndexableGrain, updateToIndex.AsImmutable(), indexInfo.MetaData, this.BaseSiloAddress);
+                    }
+                }
+            }
+
+            // At the end, because the index update should be eager, we wait for all index update tasks to finish
+            return Task.WhenAll(getUpdateTasks());
+        }
+
+        /// <summary>
         /// Lazily applies updates to the indexes defined on this grain
         /// 
         /// The lazy update involves adding a workflow record to the corresponding IIndexWorkflowQueue for this grain.
@@ -97,6 +141,9 @@ namespace Orleans.Indexing.Facet
         private protected Task ApplyIndexUpdatesLazily(InterfaceToUpdatesMap interfaceToUpdatesMap)
             => Task.WhenAll(interfaceToUpdatesMap.Select(kvp => this.GetWorkflowQueue(kvp.Key).AddToQueue(new IndexWorkflowRecord(interfaceToUpdatesMap.WorkflowIds[kvp.Key],
                                                                                                        base.iIndexableGrain, kvp.Value).AsImmutable())));
+
+        private protected void UpdateBeforeImages(InterfaceToUpdatesMap interfaceToUpdatesMap)
+            => this._grainIndexes.UpdateBeforeImages(interfaceToUpdatesMap);
 
         /// <summary>
         /// Find the corresponding workflow queue for a given grain interface type that the current IndexableGrain implements

@@ -13,7 +13,6 @@ namespace Orleans.Indexing.Facet
                                                    ITransactionalIndexedState<TGrainState> where TGrainState : class, new()
     {
         ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState;
-        bool isStateInitialized = false;
 
         public TransactionalIndexedState(
                 IServiceProvider sp,
@@ -54,7 +53,7 @@ namespace Orleans.Indexing.Facet
         {
             return this.transactionalState.PerformRead(wrappedState =>
             {
-                this.EnsureStateInitialized(wrappedState);
+                this.EnsureStateInitialized(wrappedState, forUpdate:false);
                 return readFunction(wrappedState.UserState);
             });
         }
@@ -64,29 +63,30 @@ namespace Orleans.Indexing.Facet
             // TransactionalState does the grain-state write here as well as the update, then we do athe index updates.
             var result = await this.transactionalState.PerformUpdate(wrappedState =>
             {
-                this.EnsureStateInitialized(wrappedState);
+                this.EnsureStateInitialized(wrappedState, forUpdate:true);
                 var res = updateFunction(wrappedState.UserState);
+
+                // The property values here are ephemeral; they are re-initialized by UpdateBeforeImages in EnsureStateInitialized.
                 this._grainIndexes.MapStateToProperties(wrappedState.UserState);
                 return res;
             });
 
             var interfaceToUpdatesMap = await base.UpdateIndexes(IndexUpdateReason.WriteState, onlyUpdateActiveIndexes: false, writeStateIfConstraintsAreNotViolated: true);
+            // BeforeImage update is deferred, so we don't have potentially stale values if the transaction is rolled back, e.g. if a different grain's update fails
 
-            // If everything was successful, the before images are updated
-            base.UpdateBeforeImages(interfaceToUpdatesMap);
             return result;
         }
 
         #endregion public API
 
-        void EnsureStateInitialized(IndexedGrainStateWrapper<TGrainState> wrappedState)
+        void EnsureStateInitialized(IndexedGrainStateWrapper<TGrainState> wrappedState, bool forUpdate)
         {
             // State initialization is deferred as we must be in a transaction context to access it.
-            if (!isStateInitialized)
+            wrappedState.EnsureNullValues(base._grainIndexes.PropertyNullValues);
+            if (forUpdate)
             {
-                wrappedState.EnsureNullValues(base._grainIndexes.PropertyNullValues);
-                base._grainIndexes.AddMissingBeforeImages(wrappedState.UserState);
-                isStateInitialized = true;
+                // Apply the deferred BeforeImage update.
+                _grainIndexes.UpdateBeforeImages(wrappedState.UserState, force:true);
             }
         }
 
@@ -105,19 +105,19 @@ namespace Orleans.Indexing.Facet
                                                                 int numberOfUniqueIndexesUpdated,
                                                                 bool writeStateIfConstraintsAreNotViolated)
         {
-            Debug.Assert(updateIndexesEagerly, "Transactional indexes cannot be configured to be lazy; this misconfiguration should have been caought in ValidateSingleIndex.");
             Debug.Assert(writeStateIfConstraintsAreNotViolated, "Transactional index writes must only be called when updating the grain state (not on activation change).");
 
             // For Transactional, the grain-state write has already been done by the time we get here.
             if (!interfaceToUpdatesMap.IsEmpty)
             {
+                Debug.Assert(updateIndexesEagerly, "Transactional indexes cannot be configured to be lazy; this misconfiguration should have been caught in ValidateSingleIndex.");
                 IEnumerable<Task> applyUpdates(Type grainInterfaceType, IReadOnlyDictionary<string, IMemberUpdate> updates)
                 {
                     var indexInterfaces = this._grainIndexes[grainInterfaceType];
                     foreach (var (indexName, mu) in updates.Where(kvp => kvp.Value.OperationType != IndexOperationType.None))
                     {
                         var indexInfo = indexInterfaces.NamedIndexes[indexName];
-                        var updateToIndex = new MemberUpdateWithMode(mu, IndexUpdateMode.Transactional) as IMemberUpdate;
+                        var updateToIndex = new MemberUpdateOverriddenMode(mu, IndexUpdateMode.Transactional) as IMemberUpdate;
                         yield return indexInfo.IndexInterface.ApplyIndexUpdate(this.SiloIndexManager,
                                                 this.iIndexableGrain, updateToIndex.AsImmutable(), indexInfo.MetaData, base.BaseSiloAddress);
                     }

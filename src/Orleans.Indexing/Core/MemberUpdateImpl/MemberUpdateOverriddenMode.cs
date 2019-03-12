@@ -6,12 +6,13 @@ namespace Orleans.Indexing
     /// This class is a wrapper around another IMemberUpdate which adds an update mode.
     /// </summary>
     [Serializable]
-    internal class MemberUpdateWithMode : IMemberUpdate
+    internal class MemberUpdateOverriddenMode : IMemberUpdate
     {
         private IMemberUpdate _update;
-        internal IndexUpdateMode UpdateMode { get; }
 
-        public MemberUpdateWithMode(IMemberUpdate update, IndexUpdateMode indexUpdateMode)
+        public IndexUpdateMode UpdateMode { get; }
+
+        public MemberUpdateOverriddenMode(IMemberUpdate update, IndexUpdateMode indexUpdateMode)
         {
             this._update = update;
             this.UpdateMode = indexUpdateMode;

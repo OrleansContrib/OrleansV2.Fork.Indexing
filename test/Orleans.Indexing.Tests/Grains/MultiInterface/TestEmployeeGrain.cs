@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using Orleans.Concurrency;
 using Orleans.Indexing.Facet;
 using System;
+using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing.Tests.MultiInterface
 {
@@ -10,6 +11,7 @@ namespace Orleans.Indexing.Tests.MultiInterface
     {
         // This is populated by Orleans.Indexing with the indexes from the implemented interfaces on this class.
         private readonly IIndexedState<TGrainState> indexedState;
+        internal bool IsTransactional;
 
         private TGrainState cachedState = new TGrainState();
 
@@ -40,18 +42,28 @@ namespace Orleans.Indexing.Tests.MultiInterface
         public Task SetSalary(int value) { this.cachedState.Salary = value; return Task.CompletedTask; }
         #endregion IEmployeeGrainState - not indexed
 
+        public Task InitializeStateTxn() => InitializeState();
+        public Task WriteStateTxn() => WriteState();
+
+        public Task InitializeState() => this.indexedState.PerformRead(state => { this.cachedState.ShallowCopyFrom(state); return true; });
+
         public Task WriteState() => this.indexedState.PerformUpdate(state => state.ShallowCopyFrom(this.cachedState));
 
         public Task Deactivate() { base.DeactivateOnIdle(); return Task.CompletedTask; }
 
-        protected TestEmployeeGrain(IIndexedState<TGrainState> indexedState) => this.indexedState = indexedState;
+        protected TestEmployeeGrain(IIndexedState<TGrainState> indexedState,
+                                    ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState = null)
+        {
+            this.indexedState = indexedState;
+            if (transactionalState != null)
+            {
+                indexedState.Attach(transactionalState);
+                this.IsTransactional = true;
+            }
+        }
 
         #region Facet methods - required overrides of Grain
-        public async override Task OnActivateAsync()
-        {
-            await this.indexedState.OnActivateAsync(this, base.OnActivateAsync);
-            await this.indexedState.PerformRead(state => {this.cachedState.ShallowCopyFrom(state); return true; });
-        }
+        public async override Task OnActivateAsync() => await this.indexedState.OnActivateAsync(this, base.OnActivateAsync);
 
         public override Task OnDeactivateAsync() => this.indexedState.OnDeactivateAsync(() => Task.CompletedTask);
         #endregion Facet methods - required overrides of Grain
