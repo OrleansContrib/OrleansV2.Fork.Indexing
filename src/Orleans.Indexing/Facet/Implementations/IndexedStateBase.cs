@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Orleans.Concurrency;
@@ -15,6 +14,7 @@ namespace Orleans.Indexing.Facet
     {
         private protected readonly IServiceProvider ServiceProvider;
         private protected readonly IIndexedStateConfiguration IndexedStateConfig;
+        private protected readonly IGrainActivationContext grainActivationContext;
 
         private protected Grain grain;
         private protected IIndexableGrain iIndexableGrain;
@@ -24,10 +24,11 @@ namespace Orleans.Indexing.Facet
         private protected GrainIndexes _grainIndexes;
         private protected bool _hasAnyUniqueIndex;
 
-        public IndexedStateBase(IServiceProvider sp, IIndexedStateConfiguration config)
+        public IndexedStateBase(IServiceProvider sp, IIndexedStateConfiguration config, IGrainActivationContext context)
         {
             this.ServiceProvider = sp;
             this.IndexedStateConfig = config;
+            this.grainActivationContext = context;
         }
 
         // IndexManager (and therefore logger) cannot be set in ctor because Grain activation has not yet set base.Runtime.
@@ -44,31 +45,43 @@ namespace Orleans.Indexing.Facet
         public virtual void Attach(ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState)
             => throw new IndexOperationException("Only Transactional Indexed State can attach an external state implementation.");
 
-        public abstract Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc);
-
-        public abstract Task OnDeactivateAsync(Func<Task> onGrainDeactivateFunc);
-
         public abstract Task<TResult> PerformRead<TResult>(Func<TGrainState, TResult> readFunction);
 
         public abstract Task<TResult> PerformUpdate<TResult>(Func<TGrainState, TResult> updateFunction);
 
         #endregion public API
 
-        private protected void Initialize(Grain grain)
-        {
-            if (this.grain != null) // Already called
-            {
-                return;
-            }
-            this.grain = grain;
-            this.iIndexableGrain = this.grain.AsReference<IIndexableGrain>(this.SiloIndexManager);
+        #region Lifecycle management
 
-            if (!GrainIndexes.CreateInstance(this.SiloIndexManager.IndexRegistry, this.grain.GetType(), out this._grainIndexes)
-                || !this._grainIndexes.HasAnyIndexes)
+        public void Participate<TSubclass>(IGrainLifecycle lifecycle)
+        {
+            lifecycle.Subscribe<TSubclass>(GrainLifecycleStage.SetupState, _ => OnSetupStateAsync());
+            lifecycle.Subscribe<TSubclass>(GrainLifecycleStage.Activate, ct => OnActivateAsync(ct), ct => OnDeactivateAsync(ct));
+        }
+
+        private protected Task OnSetupStateAsync() => this.Initialize(this.grainActivationContext.GrainInstance);
+
+        internal abstract Task OnActivateAsync(CancellationToken ct);
+
+        internal abstract Task OnDeactivateAsync(CancellationToken ct);
+
+        #endregion Lifecycle management
+
+        private Task Initialize(Grain grain)
+        {
+            if (this.grain == null) // If not already called
             {
-                throw new InvalidOperationException("IndexedState should not be used for a Grain class with no indexes");
+                this.grain = grain;
+                this.iIndexableGrain = this.grain.AsReference<IIndexableGrain>(this.SiloIndexManager);
+
+                if (!GrainIndexes.CreateInstance(this.SiloIndexManager.IndexRegistry, this.grain.GetType(), out this._grainIndexes)
+                    || !this._grainIndexes.HasAnyIndexes)
+                {
+                    throw new InvalidOperationException("IndexedState should not be used for a Grain class with no indexes");
+                }
+                this._hasAnyUniqueIndex = this._grainIndexes.HasAnyUniqueIndex;
             }
-            this._hasAnyUniqueIndex = this._grainIndexes.HasAnyUniqueIndex;
+            return Task.CompletedTask;
         }
 
         /// <summary>

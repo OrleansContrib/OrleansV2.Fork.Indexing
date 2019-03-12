@@ -74,11 +74,6 @@ namespace Orleans.Indexing.Tests
             }
         }
 
-        #region Facet methods - required overrides of Grain
-        public override Task OnActivateAsync() => this.indexedState.OnActivateAsync(this, base.OnActivateAsync);
-        public override Task OnDeactivateAsync() => this.indexedState.OnDeactivateAsync(() => Task.CompletedTask);
-        #endregion Facet methods - required overrides of Grain
-
         #region Required shims for IIndexableGrain methods for fault tolerance
         public Task<Immutable<System.Collections.Generic.HashSet<Guid>>> GetActiveWorkflowIdsSet() => this.indexedState.GetActiveWorkflowIdsSet();
         public Task RemoveFromActiveWorkflowIds(System.Collections.Generic.HashSet<Guid> removedWorkflowId) => this.indexedState.RemoveFromActiveWorkflowIds(removedWorkflowId);

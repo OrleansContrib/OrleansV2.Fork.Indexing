@@ -17,6 +17,8 @@ namespace Orleans.Indexing.Tests
         public const string Kirkland = "Kirkland";
         public const string Tehran = "Tehran";
         public const string Yazd = "Yazd";
+        public const string NewYork = "New York";
+        public const string LosAngeles = "Los Angeles";
 
         public const string LocationProperty = nameof(IPlayerProperties.Location);
         public const string ScoreProperty = nameof(IPlayerProperties.Score);

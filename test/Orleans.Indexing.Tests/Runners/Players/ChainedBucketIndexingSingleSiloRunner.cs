@@ -113,11 +113,12 @@ namespace Orleans.Indexing.Tests
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_Indexing_IndexUpdate3()
         {
+            // Different cities and IDs to avoid conflict with other IPlayerChain1Grain usage
             // MaxEntriesPerBucket == 5
             var grains = (await Task.WhenAll(Enumerable.Range(0, 20).Select(async ii =>
             {
-                var grain = base.GetGrain<IPlayerChain1Grain>(ii);
-                await grain.SetLocation(ITC.Seattle);
+                var grain = base.GetGrain<IPlayerChain1Grain>(ii * 100);
+                await grain.SetLocation(ITC.NewYork);
                 return grain;
             }))).ToArray();
 
@@ -125,15 +126,15 @@ namespace Orleans.Indexing.Tests
 
             Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayerChain1Grain, PlayerChain1Properties>(location);
 
-            Assert.Equal(20, await getLocationCount(ITC.Seattle));
+            Assert.Equal(20, await getLocationCount(ITC.NewYork));
 
             for (var ii = 19; ii >= 9; ii -= 2)
             {
-                await grains[ii].SetLocation(ITC.Redmond);
+                await grains[ii].SetLocation(ITC.LosAngeles);
             }
 
-            Assert.Equal(14, await getLocationCount(ITC.Seattle));
-            Assert.Equal(6, await getLocationCount(ITC.Redmond));
+            Assert.Equal(14, await getLocationCount(ITC.NewYork));
+            Assert.Equal(6, await getLocationCount(ITC.LosAngeles));
         }
 
         /// <summary>

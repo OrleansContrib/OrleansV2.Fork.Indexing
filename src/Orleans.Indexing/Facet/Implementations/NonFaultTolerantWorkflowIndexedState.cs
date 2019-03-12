@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Orleans.Runtime;
 
@@ -9,29 +10,29 @@ namespace Orleans.Indexing.Facet
 {
     // This requires TWrappedState because it is subclassed by FaultTolerantWorkflowIndexedState.
     internal class NonFaultTolerantWorkflowIndexedState<TGrainState, TWrappedState> : WorkflowIndexedStateBase<TGrainState, TWrappedState>,
-                                                                                      INonFaultTolerantWorkflowIndexedState<TGrainState>
-        where TGrainState : class, new()
-        where TWrappedState: IndexedGrainStateWrapper<TGrainState>, new()
+                                                                                      INonFaultTolerantWorkflowIndexedState<TGrainState>,
+                                                                                      ILifecycleParticipant<IGrainLifecycle>
+                                                                                      where TGrainState : class, new()
+                                                                                      where TWrappedState: IndexedGrainStateWrapper<TGrainState>, new()
     {
         public NonFaultTolerantWorkflowIndexedState(
                 IServiceProvider sp,
-                IIndexedStateConfiguration config
-            ) : base(sp, config)
+                IIndexedStateConfiguration config,
+                IGrainActivationContext context
+            ) : base(sp, config, context)
         {
             base.getWorkflowIdFunc = () => Guid.NewGuid();
         }
 
-        #region public API
+        public void Participate(IGrainLifecycle lifecycle) => base.Participate<NonFaultTolerantWorkflowIndexedState<TGrainState, TWrappedState>>(lifecycle);
 
-        public override async Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc)
+        internal override async Task OnActivateAsync(CancellationToken ct)
         {
             Debug.Assert(!(this is FaultTolerantWorkflowIndexedState<TGrainState>));    // Ensure this is overridden
             base.Logger.Trace($"Activating indexable grain of type {grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
-            await base.InitializeState(grain);
-            await base.FinishActivateAsync(onGrainActivateFunc);
+            await base.InitializeState();
+            await base.FinishActivateAsync();
         }
-
-        #endregion public API
 
         /// <summary>
         /// Applies a set of updates to the indexes defined on the grain

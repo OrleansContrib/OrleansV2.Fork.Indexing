@@ -16,9 +16,12 @@ namespace Orleans.Indexing
         /// </summary>
         /// <param name="key">the lookup key</param>
         /// <returns>the result of lookup into the hash-index</returns>
+        /// <remarks>TODO Currently unused. <see cref="IOrleansQueryable{TIGrain, TProperties}"/> could be extended with
+        ///     a GetUniqueResult method, which would be implemented in <see cref="QueryIndexedGrainsNode{TIGrain, TProperties}"/>
+        ///     to call LookupUnique(Transactional)Async.</remarks>
         [ReadOnly]
         [AlwaysInterleave]
-        [Transaction(TransactionOption.Supported)]  // TODO: Where do we use LookupUnique?
+        [Transaction(TransactionOption.Supported)]
         Task<V> LookupUniqueAsync(K key);
     }
 }

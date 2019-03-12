@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
 using Orleans.Runtime;
@@ -10,23 +11,23 @@ using Orleans.Transactions.Abstractions;
 namespace Orleans.Indexing.Facet
 {
     class TransactionalIndexedState<TGrainState> : IndexedStateBase<TGrainState>,
-                                                   ITransactionalIndexedState<TGrainState> where TGrainState : class, new()
+                                                   ITransactionalIndexedState<TGrainState>,
+                                                   ILifecycleParticipant<IGrainLifecycle>
+                                                   where TGrainState : class, new()
     {
         ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState;
 
         public TransactionalIndexedState(
                 IServiceProvider sp,
-                IIndexedStateConfiguration config
-            ) : base(sp, config)
+                IIndexedStateConfiguration config,
+                IGrainActivationContext context
+            ) : base(sp, config, context)
         {
         }
 
-        #region public API
+        public void Participate(IGrainLifecycle lifecycle) => base.Participate<TransactionalIndexedState<TGrainState>>(lifecycle);
 
-        public override void Attach(ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState)
-            => this.transactionalState = transactionalState;
-
-        public override Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc)
+        internal override Task OnActivateAsync(CancellationToken ct)
         {
             base.Logger.Trace($"Activating indexable grain of type {grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
             if (this.transactionalState == null)
@@ -35,19 +36,22 @@ namespace Orleans.Indexing.Facet
             }
 
             // Our state is "created" via Attach(). State initialization is deferred as we must be in a transaction context to access it.
-            base.Initialize(grain);
-
             // Transactional indexes cannot be active and thus do not call InsertIntoActiveIndexes or RemoveFromActiveIndexes.
-            return onGrainActivateFunc();
+            return Task.CompletedTask;
         }
 
-        public override Task OnDeactivateAsync(Func<Task> onGrainDeactivateFunc)
+        internal override Task OnDeactivateAsync(CancellationToken ct)
         {
             base.Logger.Trace($"Deactivating indexable grain of type {this.grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
 
             // Transactional indexes cannot be active and thus do not call InsertIntoActiveIndexes or RemoveFromActiveIndexes.
-            return onGrainDeactivateFunc();
+            return Task.CompletedTask;
         }
+
+        #region public API
+
+        public override void Attach(ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState)
+            => this.transactionalState = transactionalState;
 
         public override Task<TResult> PerformRead<TResult>(Func<TGrainState, TResult> readFunction)
         {

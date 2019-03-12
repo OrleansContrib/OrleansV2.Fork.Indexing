@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
 using Orleans.Runtime;
@@ -8,15 +9,18 @@ using Orleans.Runtime;
 namespace Orleans.Indexing.Facet
 {
     internal class FaultTolerantWorkflowIndexedState<TGrainState> : NonFaultTolerantWorkflowIndexedState<TGrainState, FaultTolerantIndexedGrainStateWrapper<TGrainState>>,
-                                                                    IFaultTolerantWorkflowIndexedState<TGrainState> where TGrainState : class, new()
+                                                                    IFaultTolerantWorkflowIndexedState<TGrainState>,
+                                                                    ILifecycleParticipant<IGrainLifecycle>
+                                                                    where TGrainState : class, new()
     {
         private readonly IGrainFactory _grainFactory;    // TODO: standardize leading _ or not; and don't do this._
 
         public FaultTolerantWorkflowIndexedState(
                 IServiceProvider sp,
                 IIndexedStateConfiguration config,
+                IGrainActivationContext context,
                 IGrainFactory grainFactory
-            ) : base(sp, config)
+            ) : base(sp, config, context)
         {
             this._grainFactory = grainFactory;
             base.getWorkflowIdFunc = () => this.GenerateUniqueWorkflowId();
@@ -38,19 +42,19 @@ namespace Orleans.Indexing.Facet
             set => this.ftWrappedState.ActiveWorkflowsSet = value;
         }
 
-        #region public API
+        public new void Participate(IGrainLifecycle lifecycle) => base.Participate<FaultTolerantWorkflowIndexedState<TGrainState>>(lifecycle);
 
-        public async override Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc)
+        internal async override Task OnActivateAsync(CancellationToken ct)
         {
             base.Logger.Trace($"Activating indexable grain of type {grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
-            await base.InitializeState(grain);
+            await base.InitializeState();
 
             // If the list of active workflows is null or empty we can assume that we were not previously activated
             // or did not have any incomplete workflow queue items in a prior activation.
             if (this.ActiveWorkflowsSet == null || this.ActiveWorkflowsSet.Count == 0)
             {
                 this.WorkflowQueues = null;
-                await base.FinishActivateAsync(onGrainActivateFunc);
+                await base.FinishActivateAsync();
             }
             else
             {
@@ -58,12 +62,10 @@ namespace Orleans.Indexing.Facet
                 this.PruneWorkflowQueuesForMissingInterfaceTypes();
                 await this.HandleRemainingWorkflows()
                           .ContinueWith(t => Task.WhenAll(this.PruneActiveWorkflowsSetFromAlreadyHandledWorkflows(t.Result),
-                                                          base.FinishActivateAsync(onGrainActivateFunc)));
+                                                          base.FinishActivateAsync()));
             }
             this._hasAnyTotalIndex = base._grainIndexes.HasAnyTotalIndex;
         }
-
-        #endregion public API
 
         /// <summary>
         /// Applies a set of updates to the indexes defined on the grain

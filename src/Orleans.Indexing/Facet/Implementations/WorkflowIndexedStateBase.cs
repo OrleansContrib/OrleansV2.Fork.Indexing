@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
 using Orleans.Runtime;
@@ -15,21 +16,21 @@ namespace Orleans.Indexing.Facet
     {
         private protected NonTransactionalState<TWrappedState> nonTransactionalState;
 
-        public WorkflowIndexedStateBase(IServiceProvider sp, IIndexedStateConfiguration config)
-            : base(sp, config)
+        public WorkflowIndexedStateBase(IServiceProvider sp, IIndexedStateConfiguration config, IGrainActivationContext context)
+            : base(sp, config, context)
         {
         }
 
         // A cache for the workflow queues, one for each grain interface type that the current IndexableGrain implements
         internal virtual IDictionary<Type, IIndexWorkflowQueue> WorkflowQueues { get; set; }
 
-        #region public API
-
-        public override Task OnDeactivateAsync(Func<Task> onGrainDeactivateFunc)
+        internal override Task OnDeactivateAsync(CancellationToken ct)
         {
-            base.Logger.Trace($"Deactivating indexable grain of type {this.grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
-            return Task.WhenAll(this.RemoveFromActiveIndexes(), onGrainDeactivateFunc());
+            base.Logger.Trace($"Deactivating indexable grain of type {base.grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
+            return this.RemoveFromActiveIndexes();
         }
+
+        #region public API
 
         public override Task<TResult> PerformRead<TResult>(Func<TGrainState, TResult> readFunction)
             => this.nonTransactionalState.PerformRead(wrappedState => readFunction(wrappedState.UserState));
@@ -48,10 +49,9 @@ namespace Orleans.Indexing.Facet
 
         private protected Task WriteStateAsync() => this.nonTransactionalState.PerformUpdate();
 
-        private protected async Task InitializeState(Grain grain)
+        private protected async Task InitializeState()
         {
-            base.Initialize(grain);
-            var storage = base.SiloIndexManager.GetStorageBridge<TWrappedState>(grain, base.IndexedStateConfig.StorageName);
+            var storage = base.SiloIndexManager.GetStorageBridge<TWrappedState>(base.grain, base.IndexedStateConfig.StorageName);
             this.nonTransactionalState = await NonTransactionalState<TWrappedState>.CreateAsync(storage);
             await this.PerformRead();
 
@@ -59,10 +59,10 @@ namespace Orleans.Indexing.Facet
             base._grainIndexes.AddMissingBeforeImages(this.nonTransactionalState.State.UserState);
         }
 
-        private protected Task FinishActivateAsync(Func<Task> onGrainActivateFunc)
+        private protected Task FinishActivateAsync()
         {
             Debug.Assert(this.grain != null, "Initialize() not called");
-            return Task.WhenAll(this.InsertIntoActiveIndexes(), onGrainActivateFunc());
+            return this.InsertIntoActiveIndexes();
         }
 
         /// <summary>
