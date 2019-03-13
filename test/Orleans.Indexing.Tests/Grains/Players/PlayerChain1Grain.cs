@@ -8,7 +8,7 @@ namespace Orleans.Indexing.Tests
     public class PlayerChain1Grain : PlayerGrainNonFaultTolerant<PlayerGrainState>, IPlayerChain1Grain
     {
         public PlayerChain1Grain(
-            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<PlayerGrainState> indexedState)
             : base(indexedState) { }
     }

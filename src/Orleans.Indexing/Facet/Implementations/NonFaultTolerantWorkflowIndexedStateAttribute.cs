@@ -15,7 +15,7 @@ namespace Orleans.Indexing.Facet
     [AttributeUsage(AttributeTargets.Parameter)]
     public class NonFaultTolerantWorkflowIndexedStateAttribute : IndexedStateAttribute, IFacetMetadata, INonFaultTolerantWorkflowIndexedStateAttribute, IIndexedStateConfiguration
     {
-        public NonFaultTolerantWorkflowIndexedStateAttribute(string storageName = null)
-            => base.StorageName = storageName;
+        public NonFaultTolerantWorkflowIndexedStateAttribute(string stateName, string storageName)
+            : base(stateName, storageName) { }
     }
 }

@@ -9,10 +9,8 @@ namespace Orleans.Indexing.Tests
     public class Player5GrainTransactional : PlayerGrainTransactional<PlayerGrainState>, IPlayer5GrainTransactional
     {
         public Player5GrainTransactional(
-            [TransactionalIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
-            IIndexedState<PlayerGrainState> indexedState,
-            [TransactionalState(IndexingTestConstants.TestGrainState, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
-            ITransactionalState<IndexedGrainStateWrapper<PlayerGrainState>> transactionalState)
-            : base(indexedState, transactionalState) { }
+            [TransactionalIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            IIndexedState<PlayerGrainState> indexedState)
+            : base(indexedState) { }
     }
 }

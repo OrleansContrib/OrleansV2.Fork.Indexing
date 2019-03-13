@@ -20,9 +20,12 @@ namespace Orleans.Indexing.Facet
         public TransactionalIndexedState(
                 IServiceProvider sp,
                 IIndexedStateConfiguration config,
-                IGrainActivationContext context
+                IGrainActivationContext context,
+                ITransactionalStateFactory transactionalStateFactory
             ) : base(sp, config, context)
         {
+            var transactionalStateConfig = new IndexingTransactionalStateConfiguration("stateName TODO", config.StorageName);
+            this.transactionalState = transactionalStateFactory.Create<IndexedGrainStateWrapper<TGrainState>>(transactionalStateConfig);
         }
 
         public void Participate(IGrainLifecycle lifecycle) => base.Participate<TransactionalIndexedState<TGrainState>>(lifecycle);
@@ -49,9 +52,6 @@ namespace Orleans.Indexing.Facet
         }
 
         #region public API
-
-        public override void Attach(ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState)
-            => this.transactionalState = transactionalState;
 
         public override Task<TResult> PerformRead<TResult>(Func<TGrainState, TResult> readFunction)
         {

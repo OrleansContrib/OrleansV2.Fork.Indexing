@@ -8,7 +8,7 @@ namespace Orleans.Indexing.Tests
     public class Player3GrainNonFaultTolerantLazy : PlayerGrainNonFaultTolerant<PlayerGrainState>, IPlayer3GrainNonFaultTolerantLazy
     {
         public Player3GrainNonFaultTolerantLazy(
-            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<PlayerGrainState> indexedState)
             : base(indexedState) { }
     }

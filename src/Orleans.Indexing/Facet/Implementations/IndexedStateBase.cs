@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Orleans.Concurrency;
 using Orleans.Runtime;
-using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing.Facet
 {
@@ -41,9 +40,6 @@ namespace Orleans.Indexing.Facet
         private protected SiloAddress BaseSiloAddress => this.SiloIndexManager.SiloAddress;
 
         #region public API
-
-        public virtual void Attach(ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState)
-            => throw new IndexOperationException("Only Transactional Indexed State can attach an external state implementation.");
 
         public abstract Task<TResult> PerformRead<TResult>(Func<TGrainState, TResult> readFunction);
 

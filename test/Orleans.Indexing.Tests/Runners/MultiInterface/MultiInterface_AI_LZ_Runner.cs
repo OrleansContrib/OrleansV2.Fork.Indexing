@@ -108,7 +108,7 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                INFT_Grain_Person_AI_LZ_PK, INFT_Grain_Job_AI_LZ_PK, INFT_Grain_Employee_AI_LZ_PK
     {
         public NFT_Grain_Employee_AI_LZ_PK(
-            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<EmployeeGrainState> indexedState)
             : base(indexedState) { }
     }
@@ -215,7 +215,7 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                INFT_Grain_Person_AI_LZ_PS, INFT_Grain_Job_AI_LZ_PS, INFT_Grain_Employee_AI_LZ_PS
     {
         public NFT_Grain_Employee_AI_LZ_PS(
-            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<EmployeeGrainState> indexedState)
             : base(indexedState) { }
     }
@@ -322,7 +322,7 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                INFT_Grain_Person_AI_LZ_SB, INFT_Grain_Job_AI_LZ_SB, INFT_Grain_Employee_AI_LZ_SB
     {
         public NFT_Grain_Employee_AI_LZ_SB(
-            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<EmployeeGrainState> indexedState)
             : base(indexedState) { }
     }

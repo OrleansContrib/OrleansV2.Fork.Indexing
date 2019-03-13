@@ -3,8 +3,6 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
 using Orleans.Indexing.Facet;
-using Orleans.Providers;
-using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing.Tests
 {
@@ -25,9 +23,7 @@ namespace Orleans.Indexing.Tests
     public abstract class PlayerGrainTransactional<TGrainState> : PlayerGrain<TGrainState>
         where TGrainState : PlayerGrainState, new()
     {
-        public PlayerGrainTransactional(IIndexedState<TGrainState> indexedState,
-                                        ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState)
-            : base(indexedState, transactionalState)
+        public PlayerGrainTransactional(IIndexedState<TGrainState> indexedState) : base(indexedState)
             => Debug.Assert(this.GetType().GetConsistencyScheme() == ConsistencyScheme.Transactional);
     }
 
@@ -64,15 +60,7 @@ namespace Orleans.Indexing.Tests
             return Task.CompletedTask;
         }
 
-        public PlayerGrain(IIndexedState<TGrainState> indexedState,
-                           ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState = null)
-        {
-            this.indexedState = indexedState;
-            if (transactionalState != null)
-            {
-                this.indexedState.Attach(transactionalState);
-            }
-        }
+        public PlayerGrain(IIndexedState<TGrainState> indexedState) => this.indexedState = indexedState;
 
         #region Required shims for IIndexableGrain methods for fault tolerance
         public Task<Immutable<System.Collections.Generic.HashSet<Guid>>> GetActiveWorkflowIdsSet() => this.indexedState.GetActiveWorkflowIdsSet();

@@ -15,9 +15,7 @@ namespace Orleans.Indexing.Facet
     [AttributeUsage(AttributeTargets.Parameter)]
     public class TransactionalIndexedStateAttribute : IndexedStateAttribute, IFacetMetadata, ITransactionalIndexedStateAttribute, IIndexedStateConfiguration
     {
-        public TransactionalIndexedStateAttribute(string storageName = null)
-        {
-            this.StorageName = storageName;
-        }
+        public TransactionalIndexedStateAttribute(string stateName, string storageName)
+            : base(stateName, storageName) { }
     }
 }

@@ -9,7 +9,7 @@ namespace Orleans.Indexing.Tests
     public class Player3Grain : PlayerGrainFaultTolerant<PlayerGrainState>, IPlayer3Grain
     {
         public Player3Grain(
-            [FaultTolerantWorkflowIndexedState(IndexingTestConstants.GrainStore)]
+            [FaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingTestConstants.GrainStore)]
             IIndexedState<PlayerGrainState> indexedState)
             : base(indexedState) { }
     }

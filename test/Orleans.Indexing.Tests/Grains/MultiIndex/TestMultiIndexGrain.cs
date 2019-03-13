@@ -1,6 +1,5 @@
 using Orleans.Concurrency;
 using Orleans.Indexing.Facet;
-using Orleans.Providers;
 using Orleans.Transactions.Abstractions;
 using System;
 using System.Diagnostics;
@@ -25,9 +24,7 @@ namespace Orleans.Indexing.Tests
     public abstract class TestMultiIndexGrainTransactional<TGrainState> : TestMultiIndexGrain<TGrainState>, ITestMultiIndexGrainTransactional
         where TGrainState : class, ITestMultiIndexState, new()
     {
-        public TestMultiIndexGrainTransactional(IIndexedState<TGrainState> indexedState,
-                                                ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState)
-                                                : base(indexedState, transactionalState)
+        public TestMultiIndexGrainTransactional(IIndexedState<TGrainState> indexedState) : base(indexedState)
             => Debug.Assert(this.GetType().GetConsistencyScheme() == ConsistencyScheme.Transactional);
 
         Task<string> ITestMultiIndexGrainTransactional.GetUnIndexedString() => base.GetUnIndexedString();
@@ -72,15 +69,7 @@ namespace Orleans.Indexing.Tests
             return Task.CompletedTask;
         }
 
-        public TestMultiIndexGrain(IIndexedState<TGrainState> indexedState,
-                                   ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState = null)
-        {
-            this.testBase = new TestMultiIndexGrainBase<TGrainState>(this.GetType(), indexedState);
-            if (transactionalState != null)
-            {
-                indexedState.Attach(transactionalState);
-            }
-        }
+        public TestMultiIndexGrain(IIndexedState<TGrainState> indexedState) => this.testBase = new TestMultiIndexGrainBase<TGrainState>(this.GetType(), indexedState);
 
         #region Required shims for IIndexableGrain methods for fault tolerance
         public Task<Immutable<System.Collections.Generic.HashSet<Guid>>> GetActiveWorkflowIdsSet() => this.testBase.IndexedState.GetActiveWorkflowIdsSet();

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
-using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing.Facet
 {
@@ -12,12 +11,6 @@ namespace Orleans.Indexing.Facet
     /// <typeparam name="TGrainState">The state implementation class of a <see cref="Grain{TGrainState}"/>.</typeparam>
     public interface IIndexedState<TGrainState> where TGrainState : new()
     {
-        /// <summary>
-        /// Attaches an <see cref="ITransactionalState{TState}"/> instance from the Grain's constructor.
-        /// For transactional indexes only.
-        /// </summary>
-        void Attach(ITransactionalState<IndexedGrainStateWrapper<TGrainState>> transactionalState);
-
         /// <summary>
         /// Reads the grain state, which resets the value of all indexed and non-indexed properties.
         /// </summary>

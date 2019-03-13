@@ -76,7 +76,7 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                INFT_Grain_Person_TI_EG_PK, INFT_Grain_Job_TI_EG_PK, INFT_Grain_Employee_TI_EG_PK
     {
         public NFT_Grain_Employee_TI_EG_PK(
-            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<EmployeeGrainState> indexedState)
             : base(indexedState) { }
     }
@@ -85,11 +85,9 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                ITXN_Grain_Person_TI_EG_PK, ITXN_Grain_Job_TI_EG_PK, ITXN_Grain_Employee_TI_EG_PK
     {
         public TXN_Grain_Employee_TI_EG_PK(
-            [TransactionalIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
-            IIndexedState<EmployeeGrainState> indexedState,
-            [TransactionalState(IndexingTestConstants.TestGrainState, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
-            ITransactionalState<IndexedGrainStateWrapper<EmployeeGrainState>> transactionalState)
-            : base(indexedState, transactionalState) { }
+            [TransactionalIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            IIndexedState<EmployeeGrainState> indexedState)
+            : base(indexedState) { }
     }
     #endregion // PartitionedPerKey
 
@@ -167,7 +165,7 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                INFT_Grain_Person_TI_EG_SB, INFT_Grain_Job_TI_EG_SB, INFT_Grain_Employee_TI_EG_SB
     {
         public NFT_Grain_Employee_TI_EG_SB(
-            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            [NonFaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
             IIndexedState<EmployeeGrainState> indexedState)
             : base(indexedState) { }
     }
@@ -176,11 +174,9 @@ namespace Orleans.Indexing.Tests.MultiInterface
                                                ITXN_Grain_Person_TI_EG_SB, ITXN_Grain_Job_TI_EG_SB, ITXN_Grain_Employee_TI_EG_SB
     {
         public TXN_Grain_Employee_TI_EG_SB(
-            [TransactionalIndexedState(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
-            IIndexedState<EmployeeGrainState> indexedState,
-            [TransactionalState(IndexingTestConstants.TestGrainState, IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)]
-            ITransactionalState<IndexedGrainStateWrapper<EmployeeGrainState>> transactionalState)
-            : base(indexedState, transactionalState) { }
+            [TransactionalIndexedState(IndexingConstants.IndexedGrainStateName, IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)]
+            IIndexedState<EmployeeGrainState> indexedState)
+            : base(indexedState) { }
     }
     #endregion // SingleBucket
 
