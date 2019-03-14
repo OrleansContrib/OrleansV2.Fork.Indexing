@@ -41,11 +41,11 @@ namespace Orleans.Indexing
 
         public Task<bool> DirectApplyIndexUpdateBatch(Immutable<IDictionary<IIndexableGrain, IList<IMemberUpdate>>> iUpdates,
                                                         bool isUnique, IndexMetaData idxMetaData, SiloAddress siloAddress = null)
-            => Task.FromResult(true);   // The index is maintained by the underlying _grainStorage, when the grain's WriteStateAsync is called
+            => Task.FromResult(true);   // The index is maintained by the underlying _grainStorage, when the grain's WriteStateAsync is called by the IndexedState implementation
 
         public Task<bool> DirectApplyIndexUpdate(IIndexableGrain g, Immutable<IMemberUpdate> iUpdate, bool isUniqueIndex,
                                                  IndexMetaData idxMetaData, SiloAddress siloAddress)
-            => Task.FromResult(true);   // The index is maintained by the underlying _grainStorage, when the grain's WriteStateAsync is called
+            => Task.FromResult(true);   // The index is maintained by the underlying _grainStorage, when the grain's WriteStateAsync is called by the IndexedState implementation
 
         public async Task LookupAsync(IOrleansQueryResultStream<V> result, K key)
         {

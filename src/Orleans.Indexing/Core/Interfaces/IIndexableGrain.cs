@@ -27,11 +27,11 @@ namespace Orleans.Indexing
         /// <summary>
         /// This method returns the set of active workflow IDs for a Total Index
         /// </summary>
-        Task<Immutable<HashSet<Guid>>> GetActiveWorkflowIdsSet();
+        Task<Immutable<HashSet<Guid>>> GetActiveWorkflowIdsSet();   // TODO: Default implementation in C# 8.0
 
         /// <summary>
         /// This method removes a workflow ID from the list of active workflow IDs for a Total Index
         /// </summary>
-        Task RemoveFromActiveWorkflowIds(HashSet<Guid> removedWorkflowId);
+        Task RemoveFromActiveWorkflowIds(HashSet<Guid> removedWorkflowId);  // TODO: Default implementation in C# 8.0
     }
 }
