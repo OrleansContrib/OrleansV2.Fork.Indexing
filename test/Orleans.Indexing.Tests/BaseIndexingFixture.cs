@@ -23,10 +23,14 @@ namespace Orleans.Indexing.Tests
 
         internal static ISiloHostBuilder Configure(ISiloHostBuilder hostBuilder, string databaseName = null)
         {
-            if (!TestDefaultConfiguration.GetValue("CosmosDBEndpoint", out string cosmosDBEndpoint)
-                || !TestDefaultConfiguration.GetValue("CosmosDBKey", out string cosmosDBKey))
+            string cosmosDBEndpoint = string.Empty, cosmosDBKey = string.Empty;
+            if (databaseName != null)
             {
-                throw new IndexConfigurationException("CosmosDB connection values are not specified");
+                if (!TestDefaultConfiguration.GetValue("CosmosDBEndpoint", out cosmosDBEndpoint)
+                    || !TestDefaultConfiguration.GetValue("CosmosDBKey", out cosmosDBKey))
+                {
+                    throw new IndexConfigurationException("CosmosDB connection values are not specified");
+                }
             }
 
             hostBuilder.AddMemoryGrainStorage(IndexingTestConstants.GrainStore)
@@ -43,6 +47,7 @@ namespace Orleans.Indexing.Tests
                            parts.AddApplicationPart(typeof(SimpleGrain).Assembly);
                        });
 
+#if false // TODO: Fix CosmosDB to refer to Microsoft.Extensions.Options for OptionsBuilder
             return databaseName != null
                 ? hostBuilder.AddCosmosDBGrainStorage(IndexingTestConstants.CosmosDBGrainStorage, opt =>
                     {
@@ -57,6 +62,9 @@ namespace Orleans.Indexing.Tests
                         opt.StateFieldsToIndex.AddRange(GetDSMIStateFieldsToIndex());
                     })
                 : hostBuilder;
+#else
+            return hostBuilder;
+#endif
         }
 
         internal static IClientBuilder Configure(IClientBuilder clientBuilder)
