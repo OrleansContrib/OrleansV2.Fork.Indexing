@@ -239,13 +239,16 @@ namespace Orleans.Indexing
             => indexType.RequireIndexInterfaceType() && typeof(IActiveHashIndexPartitionedPerSilo).IsAssignableFrom(indexType);
 
         internal static bool IsTotalIndex(this Type indexType)
-            => indexType.RequireIndexInterfaceType() && typeof(ITotalIndex).IsAssignableFrom(indexType); // TODO Possible addition for Transactional
+            => indexType.RequireIndexInterfaceType() && typeof(ITotalIndex).IsAssignableFrom(indexType);
+
+        internal static bool IsTransactionalIndex(this Type indexType)
+            => indexType.RequireIndexInterfaceType() && typeof(ITransactionalLookupIndex).IsAssignableFrom(indexType);
 
         internal static bool IsDirectStorageManagedIndex(this Type indexType)
             => indexType.RequireIndexInterfaceType() && typeof(IDirectStorageManagedIndex).IsAssignableFrom(indexType);
 
         internal static bool IsActiveIndex(this Type indexType)
-            => !indexType.IsTotalIndex() && !indexType.IsDirectStorageManagedIndex();
+            => !indexType.IsTotalIndex() && !indexType.IsDirectStorageManagedIndex() && !indexType.IsTransactionalIndex();
 
         internal static bool IsTotalIndex(this IIndexInterface itf)
             => itf is ITotalIndex;

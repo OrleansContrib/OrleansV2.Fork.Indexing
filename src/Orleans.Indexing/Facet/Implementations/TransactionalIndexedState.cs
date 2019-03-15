@@ -24,7 +24,7 @@ namespace Orleans.Indexing.Facet
                 ITransactionalStateFactory transactionalStateFactory
             ) : base(sp, config, context)
         {
-            var transactionalStateConfig = new IndexingTransactionalStateConfiguration("stateName TODO", config.StorageName);
+            var transactionalStateConfig = new IndexingTransactionalStateConfiguration(config.StateName, config.StorageName);
             this.transactionalState = transactionalStateFactory.Create<IndexedGrainStateWrapper<TGrainState>>(transactionalStateConfig);
         }
 
@@ -115,7 +115,7 @@ namespace Orleans.Indexing.Facet
             if (!interfaceToUpdatesMap.IsEmpty)
             {
                 Debug.Assert(updateIndexesEagerly, "Transactional indexes cannot be configured to be lazy; this misconfiguration should have been caught in ValidateSingleIndex.");
-                IEnumerable<Task> applyUpdates(Type grainInterfaceType, IReadOnlyDictionary<string, IMemberUpdate> updates)
+                IEnumerable<Task> getIndexUpdateTasks(Type grainInterfaceType, IReadOnlyDictionary<string, IMemberUpdate> updates)
                 {
                     var indexInterfaces = this._grainIndexes[grainInterfaceType];
                     foreach (var (indexName, mu) in updates.Where(kvp => kvp.Value.OperationType != IndexOperationType.None))
@@ -127,7 +127,12 @@ namespace Orleans.Indexing.Facet
                     }
                 }
 
-                await Task.WhenAll(interfaceToUpdatesMap.SelectMany(kvp => applyUpdates(kvp.Key, kvp.Value)));
+                // Execute each index update individually, in an invariant sequence, to avoid deadlocks when locking multiple index buckets.
+                // TODO performance: safely execute multiple index updates in parallel.
+                foreach (var updateTask in interfaceToUpdatesMap.SelectMany(kvp => getIndexUpdateTasks(kvp.Key, kvp.Value)))
+                {
+                    await updateTask;
+                }
             }
         }
     }

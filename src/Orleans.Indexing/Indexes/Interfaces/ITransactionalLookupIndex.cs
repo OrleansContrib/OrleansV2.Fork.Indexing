@@ -70,7 +70,7 @@ namespace Orleans.Indexing
         /// <returns>the result of lookup into the hash-index</returns>
         [ReadOnly]
         [AlwaysInterleave]
-        [Transaction(TransactionOption.CreateOrJoin)]  // TODO: Where do we use LookupUnique?
+        [Transaction(TransactionOption.CreateOrJoin)]
         Task<V> LookupTransactionalUniqueAsync(K key);
     }
 }

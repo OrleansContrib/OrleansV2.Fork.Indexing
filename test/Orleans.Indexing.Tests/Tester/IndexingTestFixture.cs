@@ -5,25 +5,25 @@ using System;
 
 namespace Orleans.Indexing.Tests
 {
-    public class WorkflowIndexingFixture : BaseIndexingFixture
+    public class IndexingTestFixture : BaseIndexingFixture
     {
-        internal virtual void AddSiloBuilderConfigurator(TestClusterBuilder builder) => builder.AddSiloBuilderConfigurator<SiloBuilderConfiguratorWf>();
+        internal virtual void AddSiloBuilderConfigurator(TestClusterBuilder builder) => builder.AddSiloBuilderConfigurator<SiloBuilderConfigurator>();
 
         protected override void ConfigureTestCluster(TestClusterBuilder builder)
         {
             base.ConfigureTestClusterForIndexing(builder);
             AddSiloBuilderConfigurator(builder);
-            builder.AddClientBuilderConfigurator<ClientBuilderConfiguratorWf>();
+            builder.AddClientBuilderConfigurator<ClientBuilderConfigurator>();
         }
 
-        private class SiloBuilderConfiguratorWf : ISiloBuilderConfigurator
+        private class SiloBuilderConfigurator : ISiloBuilderConfigurator
         {
             public void Configure(ISiloHostBuilder hostBuilder) =>
                 BaseIndexingFixture.Configure(hostBuilder)
                                    .UseIndexing(indexingOptions => ConfigureBasicOptions(indexingOptions));
         }
 
-        private class ClientBuilderConfiguratorWf : IClientBuilderConfigurator
+        private class ClientBuilderConfigurator : IClientBuilderConfigurator
         {
             public void Configure(IConfiguration configuration, IClientBuilder clientBuilder) =>
                 BaseIndexingFixture.Configure(clientBuilder)
@@ -38,9 +38,9 @@ namespace Orleans.Indexing.Tests
         }
     }
 
-    public class WorkflowDSMIndexingFixture : WorkflowIndexingFixture
+    public class WorkflowDSMIndexingFixture : IndexingTestFixture
     {
-        internal class SiloBuilderConfiguratorWfDSMI : ISiloBuilderConfigurator
+        internal class SiloBuilderConfiguratorDSMI : ISiloBuilderConfigurator
         {
             // Each class is an Xunit collection receiving the class fixture; we drop the database, so must
             // use a different DB name for each class.
@@ -53,21 +53,21 @@ namespace Orleans.Indexing.Tests
         }
     }
 
-    public class WorkflowDSMIEGIndexingFixture : WorkflowDSMIndexingFixture
+    public class WorkflowDSMI_EG_IndexingFixture : WorkflowDSMIndexingFixture
     {
-        internal override void AddSiloBuilderConfigurator(TestClusterBuilder builder) => builder.AddSiloBuilderConfigurator<SiloBuilderConfiguratorWfDSMIEG>();
+        internal override void AddSiloBuilderConfigurator(TestClusterBuilder builder) => builder.AddSiloBuilderConfigurator<SiloBuilderConfiguratorDSMI_EG>();
 
-        internal class SiloBuilderConfiguratorWfDSMIEG : WorkflowDSMIEGIndexingFixture.SiloBuilderConfiguratorWfDSMI
+        internal class SiloBuilderConfiguratorDSMI_EG : SiloBuilderConfiguratorDSMI
         {
             internal override string GetDatabaseName() => DatabaseNamePrefix + "DSMI_EG";
         }
     }
 
-    public class WorkflowDSMILZIndexingFixture : WorkflowDSMIndexingFixture
+    public class WorkflowDSMI_LZ_IndexingFixture : WorkflowDSMIndexingFixture
     {
-        internal override void AddSiloBuilderConfigurator(TestClusterBuilder builder) => builder.AddSiloBuilderConfigurator<SiloBuilderConfiguratorWfDSMILZ>();
+        internal override void AddSiloBuilderConfigurator(TestClusterBuilder builder) => builder.AddSiloBuilderConfigurator<SiloBuilderConfiguratorDSMI_LZ>();
 
-        internal class SiloBuilderConfiguratorWfDSMILZ : WorkflowDSMIEGIndexingFixture.SiloBuilderConfiguratorWfDSMI
+        internal class SiloBuilderConfiguratorDSMI_LZ : SiloBuilderConfiguratorDSMI
         {
             internal override string GetDatabaseName() => DatabaseNamePrefix + "DSMI_LZ";
         }

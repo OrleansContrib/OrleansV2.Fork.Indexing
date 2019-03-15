@@ -253,8 +253,7 @@ namespace Orleans.Indexing.Facet
         }
 
         /// <summary>
-        /// Adds a workflow ID to the list of active workflows
-        /// for this fault-tolerant indexable grain
+        /// Adds a workflow ID to the list of active workflows for this fault-tolerant indexable grain
         /// </summary>
         /// <param name="workflowIds">the workflow IDs to be added</param>
         private void AddWorkflowIdsToActiveWorkflows(Guid[] workflowIds)

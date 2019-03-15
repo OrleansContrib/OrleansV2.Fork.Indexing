@@ -185,9 +185,9 @@ namespace Orleans.Indexing
             // The target grain that is updated
             V updatedGrain = g.AsReference<V>(this.SiloIndexManager);
 
-            // TODO performance: If we already have the next bucket, we can pre-check to see if we are going to do any operation in the
-            // bucket, and if not, avoid the PerformUpdate for this bucket. However, doing so would involve a PerformRead and then a
-            // scheduling point, allowing another operation to change things.
+            // TODO performance: We can pre-check to see if we are going to do any operation in the bucket, and if not and we already
+            // have the next bucket, we can avoid the PerformUpdate for this bucket. However, doing so would involve a PerformRead and
+            // then a scheduling point, allowing another operation to change things.
 
             IIndexInterface<K, V> nextBucketIndexInterface = await this.WriteStateAsync(state =>
             {

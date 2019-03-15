@@ -10,7 +10,7 @@ namespace Orleans.Indexing.Tests
         public string Location { get; set; }
     }
 
-    public interface IPlayer5Grain : IPlayerGrain, IIndexableGrain<Player5Properties>   // TODO: Currently not used in any tests
+    public interface IPlayer5Grain : IPlayerGrain, IIndexableGrain<Player5Properties>
     {
     }
 #endif // ALLOW_FT_ACTIVE
