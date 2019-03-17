@@ -185,7 +185,7 @@ namespace Orleans.Indexing
             // The target grain that is updated
             V updatedGrain = g.AsReference<V>(this.SiloIndexManager);
 
-            // TODO performance: We can pre-check to see if we are going to do any operation in the bucket, and if not and we already
+            // TODO performance: If we pre-check and determine that we will not be doing any operation in the bucket, and if we already
             // have the next bucket, we can avoid the PerformUpdate for this bucket. However, doing so would involve a PerformRead and
             // then a scheduling point, allowing another operation to change things.
 

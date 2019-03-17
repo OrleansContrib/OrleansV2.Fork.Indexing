@@ -25,7 +25,15 @@ namespace Orleans.Indexing.Tests
         public string NonUniqueString { get; set; }
     }
 
+    public class TXN_Props_UIUSNINS_DSMI_EG_PK : NFT_Props_UIUSNINS_DSMI_EG_PK
+    {
+    }
+
     public interface INFT_Grain_UIUSNINS_DSMI_EG_PK : ITestMultiIndexGrain, IIndexableGrain<NFT_Props_UIUSNINS_DSMI_EG_PK>
+    {
+    }
+
+    public interface ITXN_Grain_UIUSNINS_DSMI_EG_PK : ITestMultiIndexGrainTransactional, IIndexableGrain<NFT_Props_UIUSNINS_DSMI_EG_PK>
     {
     }
 
@@ -37,11 +45,20 @@ namespace Orleans.Indexing.Tests
             IIndexedState<TestMultiIndexState> indexedState)
             : base(indexedState) { }
     }
+
+    [StorageProvider(ProviderName = IndexingTestConstants.CosmosDBGrainStorage)]
+    public class TXN_Grain_UIUSNINS_DSMI_EG_PK : TestMultiIndexGrainTransactional<TestMultiIndexState>, ITXN_Grain_UIUSNINS_DSMI_EG_PK
+    {
+        public TXN_Grain_UIUSNINS_DSMI_EG_PK(
+            [TransactionalIndexedState(IndexingConstants.IndexedGrainStateName, IndexingTestConstants.CosmosDBGrainStorage)]
+            IIndexedState<TestMultiIndexState> indexedState)
+            : base(indexedState) { }
+    }
     #endregion // PartitionedPerKey
 
     #region PartitionedPerSilo
 
-    // NFT only; FT cannot be configured to be Eager.
+    // NFT only; FT cannot be configured to be Eager and TXN can only be Total which cannot be PerSilo
 
     public class NFT_Props_UIUSNINS_DSMI_EG_PS : ITestMultiIndexProperties
     {
@@ -91,7 +108,15 @@ namespace Orleans.Indexing.Tests
         public string NonUniqueString { get; set; }
     }
 
+    public class TXN_Props_UIUSNINS_DSMI_EG_SB : NFT_Props_UIUSNINS_DSMI_EG_SB
+    {
+    }
+
     public interface INFT_Grain_UIUSNINS_DSMI_EG_SB : ITestMultiIndexGrain, IIndexableGrain<NFT_Props_UIUSNINS_DSMI_EG_SB>
+    {
+    }
+
+    public interface ITXN_Grain_UIUSNINS_DSMI_EG_SB : ITestMultiIndexGrainTransactional, IIndexableGrain<NFT_Props_UIUSNINS_DSMI_EG_SB>
     {
     }
 
@@ -100,6 +125,15 @@ namespace Orleans.Indexing.Tests
     {
         public NFT_Grain_UIUSNINS_DSMI_EG_SB(
             [NonFaultTolerantWorkflowIndexedState(IndexingConstants.IndexedGrainStateName, IndexingTestConstants.CosmosDBGrainStorage)]
+            IIndexedState<TestMultiIndexState> indexedState)
+            : base(indexedState) { }
+    }
+
+    [StorageProvider(ProviderName = IndexingTestConstants.CosmosDBGrainStorage)]
+    public class TXN_Grain_UIUSNINS_DSMI_EG_SB : TestMultiIndexGrainTransactional<TestMultiIndexState>, ITXN_Grain_UIUSNINS_DSMI_EG_SB
+    {
+        public TXN_Grain_UIUSNINS_DSMI_EG_SB(
+            [TransactionalIndexedState(IndexingConstants.IndexedGrainStateName, IndexingTestConstants.CosmosDBGrainStorage)]
             IIndexedState<TestMultiIndexState> indexedState)
             : base(indexedState) { }
     }
@@ -118,6 +152,12 @@ namespace Orleans.Indexing.Tests
             await base.TestIndexesWithDeactivations<INFT_Grain_UIUSNINS_DSMI_EG_PK, NFT_Props_UIUSNINS_DSMI_EG_PK>();
         }
 
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_TXN_Grain_UIUSNINS_DSMI_EG_PK()
+        {
+            await base.TestIndexesWithDeactivationsTxn<ITXN_Grain_UIUSNINS_DSMI_EG_PK, TXN_Props_UIUSNINS_DSMI_EG_PK>();
+        }
+
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_NFT_Grain_UIUSNINS_DSMI_EG_PS()
         {
@@ -128,6 +168,12 @@ namespace Orleans.Indexing.Tests
         public async Task Test_NFT_Grain_UIUSNINS_DSMI_EG_SB()
         {
             await base.TestIndexesWithDeactivations<INFT_Grain_UIUSNINS_DSMI_EG_SB, NFT_Props_UIUSNINS_DSMI_EG_SB>();
+        }
+
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_TXN_Grain_UIUSNINS_DSMI_EG_SB()
+        {
+            await base.TestIndexesWithDeactivationsTxn<ITXN_Grain_UIUSNINS_DSMI_EG_SB, TXN_Props_UIUSNINS_DSMI_EG_SB>();
         }
     }
 }

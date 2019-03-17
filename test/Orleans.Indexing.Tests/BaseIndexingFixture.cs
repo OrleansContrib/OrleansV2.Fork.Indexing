@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Orleans.Hosting;
 using Orleans.Runtime;
 using Orleans.TestingHost;
+using Orleans.Transactions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -102,9 +103,11 @@ namespace Orleans.Indexing.Tests
             foreach (var (grainInterfaceType, propertiesClassType) in ApplicationPartsIndexableGrainLoader.EnumerateIndexedInterfacesForAGrainClassType(grainClassType)
                                                                         .Where(tup => !interfacesToIndexedPropertyNames.ContainsKey(tup.interfaceType)))
             {
+                // TODO: See comments in DSMIGrain.LookupGrainReferences; get the path with and without the transactional storage wrapper prefix.
                 interfacesToIndexedPropertyNames[grainInterfaceType] = propertiesClassType.GetProperties()
                                                                         .Where(propInfo => propInfo.GetCustomAttributes<StorageManagedIndexAttribute>(inherit: false).Any())
                                                                         .Select(propInfo => IndexingConstants.UserStatePrefix + propInfo.Name)
+                                                                        .SelectMany(path => new[] {path, $"{nameof(TransactionalStateRecord<object>.CommittedState)}.{path}"})
                                                                         .ToArray();
             }
         }
