@@ -4,6 +4,7 @@ using Orleans.Indexing.Tests.MultiInterface;
 
 namespace Orleans.Indexing.Tests
 {
+    #region Players
     [TestCategory("BVT"), TestCategory("Indexing")]
     public class SimpleIndexingSingleSiloTests : SimpleIndexingSingleSiloRunner, IClassFixture<IndexingTestFixture>
     {
@@ -57,6 +58,14 @@ namespace Orleans.Indexing.Tests
     {
         public NoIndexingTests(IndexingTestFixture fixture, ITestOutputHelper output) : base(fixture, output) { }
     }
+
+    [TestCategory("BVT"), TestCategory("Indexing")]
+    public class TransactionalPlayerTests : TransactionalPlayerRunner, IClassFixture<IndexingTestFixture>
+    {
+        public TransactionalPlayerTests(IndexingTestFixture fixture, ITestOutputHelper output) : base(fixture, output) { }
+    }
+
+    #endregion Players
 
     #region MultiIndex
 

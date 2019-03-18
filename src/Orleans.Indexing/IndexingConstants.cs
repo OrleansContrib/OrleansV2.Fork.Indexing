@@ -11,7 +11,7 @@ namespace Orleans.Indexing
         public const string INDEXING_OPTIONS_NAME = nameof(IndexingOptions);
         public static string UserStatePrefix = nameof(IndexedGrainStateWrapper<object>.UserState) + ".";
         public const string BucketStateName = "BucketState";
-        public const string IndexedGrainStateName = "IndexedGrainState";
+        public const string IndexedGrainStateName = IndexUtils.IndexedGrainStateName;
  
         public const int INDEX_WORKFLOW_QUEUE_HANDLER_GRAIN_SERVICE_TYPE_CODE = 251;
         public const int INDEX_WORKFLOW_QUEUE_GRAIN_SERVICE_TYPE_CODE = 252;

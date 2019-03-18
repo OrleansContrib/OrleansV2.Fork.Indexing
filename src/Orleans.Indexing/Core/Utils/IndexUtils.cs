@@ -17,6 +17,8 @@ namespace Orleans.Indexing
     /// </summary>
     public static class IndexUtils
     {
+        public const string IndexedGrainStateName = "IndexedGrainState";
+
         /// <summary>
         /// A utility function for getting the index grainID, which is a simple concatenation of the grain
         /// interface type and indexName
