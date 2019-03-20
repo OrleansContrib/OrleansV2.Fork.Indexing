@@ -5,7 +5,7 @@ namespace BenchmarkGrainInterfaces.Indexing
     [Serializable]
     public class IndexingParameters
     {
-        const int MaxPropertiesPerGrain = 4;
+        public const int MaxPropertiesPerGrain = 4;
 
         /// <summary>
         /// Number of runs (not including the first cold run)

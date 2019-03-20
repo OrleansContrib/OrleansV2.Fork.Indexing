@@ -19,12 +19,18 @@ namespace Benchmarks.Indexing
 {
     public class IndexingBenchmark<TGrainInterface> where TGrainInterface : IIndexingGrain, IGrainWithIntegerKey
     {
+        // PerKey has higher throughput. TODO: Consider adding commandline arguments for experimentation.
+        private static IndexingParameters indexingParamsPK = new IndexingParameters(runs: 2, grains: 20000, props: 4, concurrentGrains: 5000);
+        private static IndexingParameters indexingParamsSB = new IndexingParameters(runs: 2, grains: 400, props: 1, concurrentGrains: 20);
+        private const int MaxHashBuckets = -1;
+
         private TestCluster host;
         private IndexingParameters indexingParams;
 
-        public IndexingBenchmark(IndexingParameters indexingParams, Action<IndexingBenchmark<TGrainInterface>> setupAction)
+        public IndexingBenchmark(bool isPerKey, Action<IndexingBenchmark<TGrainInterface>> setupAction)
         {
-            this.indexingParams = indexingParams;
+            this.indexingParams = isPerKey ? indexingParamsPK : indexingParamsSB;
+            Console.WriteLine($"    ({this.indexingParams}, MaxHashBuckets {(MaxHashBuckets < 0 ? "<unlimited>" : MaxHashBuckets.ToString())}");
             setupAction(this);
         }
 
@@ -108,7 +114,7 @@ namespace Benchmarks.Indexing
             public void Configure(ISiloHostBuilder hostBuilder)
             {
                 hostBuilder
-                    .UseIndexing()
+                    .UseIndexing(ob => ob.Configure(indexingOptions => indexingOptions.MaxHashBuckets = MaxHashBuckets))
                     .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(IndexingState).Assembly).WithReferences())
                     .ConfigureServices(services => services.AddSingleton<TelemetryConsumer>())
                     .Configure<TelemetryOptions>(options => options.AddConsumer<TelemetryConsumer>())
