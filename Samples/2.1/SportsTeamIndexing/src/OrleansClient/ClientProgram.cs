@@ -100,15 +100,28 @@ namespace OrleansClient
             async Task createGrain(string name, string league, string location, string venue)
             {
                 var team = client.GetGrain<ISportsTeamGrain>(id++);
-                await team.SetName(name);
-                await team.SetLeague(league);
-                await team.SetLocation(location);
-                await team.SetVenue(venue);
+
+                // Illustrates two ways of setting property values.
+                if ((id % 1) == 0)
+                {
+                    await team.SetName(name);
+                    await team.SetLeague(league);
+                    await team.SetLocation(location);
+                    await team.SetVenue(venue);
+                }
+                else
+                {
+                    await team.WriteStateAsync(new SportsTeamState
+                        {
+                            Name = name,
+                            League = league,
+                            Location = location,
+                            Venue = venue
+                        });
+                }
 
                 var qualifiedName = await team.GetQualifiedName();
                 System.Diagnostics.Debug.Assert(qualifiedName == SportsTeamIndexedProperties.JoinName(league, name));
-
-                await team.SaveAsync();
             }
 
             // Define the grains. 4 teams from 4 leagues (as of this writing).
@@ -117,7 +130,7 @@ namespace OrleansClient
             await createGrain("Jets", "NFL", "New York, NY", "MetLife Stadium");
             await createGrain("Cardinals", "NFL", "Glendale, AZ", "State Farm Stadium");
 
-            await createGrain("Mariners", "MLB", "Seattle, WA", "T-Mobile Park"); // TODO: fill in when resolved
+            await createGrain("Mariners", "MLB", "Seattle, WA", "T-Mobile Park");
             await createGrain("Giants", "MLB", "San Francisco, CA", "AT&T Park");
             await createGrain("Yankees", "MLB", "New York, NY", "Yankee Stadium");
             await createGrain("Cardinals", "MLB", "Saint Louis, MO", "Busch Stadium");
@@ -147,8 +160,17 @@ namespace OrleansClient
             async Task<HashSet<ISportsTeamGrain>> getGrains(SportsTeamQueryable queryable) => new HashSet<ISportsTeamGrain>(await queryable.GetResults());
 
             const string nltab = "\n\t";
-            async Task<string> stringifyTeams(IEnumerable<ISportsTeamGrain> grainSet)
-                => nltab + string.Join(nltab, await Task.WhenAll(grainSet.Select(async g => $"{await g.GetName()} ({await g.GetLeague()}; {await g.GetLocation()}; {await g.GetVenue()})")));
+
+            // Illustrates two ways of obtaining property values.
+            async Task<string> stringifyTeamsByProperty(IEnumerable<ISportsTeamGrain> grainSet)
+                => nltab + string.Join(nltab, await Task.WhenAll(grainSet.Select(async g
+                                                    => $"{await g.GetName()} ({await g.GetLeague()}; {await g.GetLocation()}; {await g.GetVenue()})")));
+            async Task<string> stringifyTeamsByState(IEnumerable<ISportsTeamGrain> grainSet)
+                => nltab + string.Join(nltab, await Task.WhenAll(grainSet.Select(async g =>
+                    {
+                        var state = await g.ReadStateAsync();
+                        return $"{state.Name} ({state.League}; {state.Location}; {state.Venue})";
+                    })));
 
             // Execute the queries.
 
@@ -165,13 +187,13 @@ namespace OrleansClient
             // Simple query.
             Console.WriteLine("\nHow many NFL teams are there?");
             var grainsInNFL = await getGrains(queryByLeague("NFL"));
-            Console.WriteLine($"  {grainsInNFL.Count}{await stringifyTeams(grainsInNFL)}");
+            Console.WriteLine($"  {grainsInNFL.Count}{await stringifyTeamsByProperty(grainsInNFL)}");
 
             // Intersecting indexes.
             Console.WriteLine("\nHow many of those are in New York?");
             var grainsByLocation = await getGrains(queryByLocation("New York, NY"));
             var intersectLeagueLocation = grainsInNFL.Intersect(grainsByLocation).ToArray();
-            Console.WriteLine($"  {intersectLeagueLocation.Length}{await stringifyTeams(intersectLeagueLocation)}");
+            Console.WriteLine($"  {intersectLeagueLocation.Length}{await stringifyTeamsByProperty(intersectLeagueLocation)}");
 
             // Simple query, using ObserveResults (the more real-world case).
             Console.WriteLine("\nHow many teams are named Giants?");
@@ -181,19 +203,19 @@ namespace OrleansClient
                 grainsByName.Add(team);
                 return Task.CompletedTask;
             }));
-            Console.WriteLine($"  {grainsByName.Count}{await stringifyTeams(grainsByName)}");
+            Console.WriteLine($"  {grainsByName.Count}{await stringifyTeamsByState(grainsByName)}");
 
             // Compound index simulated using computed property.
             Console.WriteLine("\nHow many teams named Giants are in New York?");
             var grainsByQualifiedName = await getGrains(queryByQualifiedName(SportsTeamIndexedProperties.JoinName("NFL", "Giants")));
-            Console.WriteLine($"  {grainsByQualifiedName.Count}{await stringifyTeams(grainsByQualifiedName)}");
+            Console.WriteLine($"  {grainsByQualifiedName.Count}{await stringifyTeamsByState(grainsByQualifiedName)}");
 
             // Unioning indexes.
             Console.WriteLine("\nHow many women's teams are there?");
             var grainsInWNBA = await getGrains(queryByLeague("WNBA"));
             var grainsInNWSL = await getGrains(queryByLeague("NWSL"));
             var womensGrains = grainsInWNBA.Union(grainsInNWSL).ToArray();
-            Console.WriteLine($"  {womensGrains.Length}{await stringifyTeams(womensGrains)}");
+            Console.WriteLine($"  {womensGrains.Length}{await stringifyTeamsByState(womensGrains)}");
         }
     }
 }

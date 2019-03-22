@@ -1,7 +1,6 @@
 using System;
-using SportsTeamIndexing.Interfaces;
 
-namespace SportsTeamIndexing.Grains
+namespace SportsTeamIndexing.Interfaces
 {
     [Serializable]
     public class SportsTeamState : SportsTeamIndexedProperties

@@ -22,6 +22,7 @@ namespace Orleans.Indexing.Facet
         /// </summary>
         Task<TResult> PerformUpdate<TResult>(Func<TGrainState, TResult> updateFunction);
 
+        #region Workflow Fault-Tolerant support
         /// <summary>
         /// This method returns the set of active workflow IDs for a fault-tolerant Total Index
         /// </summary>
@@ -31,5 +32,6 @@ namespace Orleans.Indexing.Facet
         /// This method removes a workflow ID from the list of active workflow IDs for a fault-tolerant Total Index
         /// </summary>
         Task RemoveFromActiveWorkflowIds(HashSet<Guid> removedWorkflowId);
+        #endregion Workflow Fault-Tolerant support
     }
 }
