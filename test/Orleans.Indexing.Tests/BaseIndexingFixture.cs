@@ -47,7 +47,6 @@ namespace Orleans.Indexing.Tests
                            parts.AddApplicationPart(typeof(ISimpleGrain).Assembly).WithReferences();
                            parts.AddApplicationPart(typeof(SimpleGrain).Assembly).WithReferences();
                        });
-#if false
             return databaseName != null
                 ? hostBuilder.AddCosmosDBGrainStorage(IndexingTestConstants.CosmosDBGrainStorage, opt =>
                     {
@@ -62,9 +61,6 @@ namespace Orleans.Indexing.Tests
                         opt.StateFieldsToIndex.AddRange(GetDSMIStateFieldsToIndex());
                     })
                 : hostBuilder;
-#else
-            return hostBuilder;
-#endif
         }
 
         internal static IClientBuilder Configure(IClientBuilder clientBuilder)
