@@ -16,9 +16,9 @@ namespace Orleans.Indexing.Tests
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_Indexing_NoIndex()
         {
-            IPlayer1GrainNonFaultTolerant p100 = base.GetGrain<IPlayer1GrainNonFaultTolerant>(100);
-            IPlayer1GrainNonFaultTolerant p200 = base.GetGrain<IPlayer1GrainNonFaultTolerant>(200);
-            IPlayer1GrainNonFaultTolerant p300 = base.GetGrain<IPlayer1GrainNonFaultTolerant>(300);
+            IPlayer_NFT_TI_EG_SB p100 = base.GetGrain<IPlayer_NFT_TI_EG_SB>(100);
+            IPlayer_NFT_TI_EG_SB p200 = base.GetGrain<IPlayer_NFT_TI_EG_SB>(200);
+            IPlayer_NFT_TI_EG_SB p300 = base.GetGrain<IPlayer_NFT_TI_EG_SB>(300);
 
             await p100.SetLocation(ITC.Tehran);
             await p200.SetLocation(ITC.Tehran);

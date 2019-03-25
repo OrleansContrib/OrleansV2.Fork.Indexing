@@ -13,7 +13,6 @@ namespace Orleans.Indexing.Tests
         {
         }
 
-#if ALLOW_FT_ACTIVE
         /// <summary>
         /// Tests basic functionality of ActiveHashIndexPartitionedPerSiloImpl with 2 Silos
         /// </summary>
@@ -22,18 +21,18 @@ namespace Orleans.Indexing.Tests
         {
             await base.StartAndWaitForSecondSilo();
 
-            IPlayer2Grain p1 = base.GetGrain<IPlayer2Grain>(1);
+            IPlayer_FT_TI_LZ_PK p1 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(1);
             await p1.SetLocation(ITC.Seattle);
 
-            IPlayer2Grain p2 = base.GetGrain<IPlayer2Grain>(2);
-            IPlayer2Grain p3 = base.GetGrain<IPlayer2Grain>(3);
+            IPlayer_FT_TI_LZ_PK p2 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(2);
+            IPlayer_FT_TI_LZ_PK p3 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(3);
 
             await p2.SetLocation(ITC.Seattle);
             await p3.SetLocation(ITC.SanFrancisco);
 
-            var locIdx = await base.GetAndWaitForIndex<string, IPlayer2Grain>(ITC.LocationProperty);
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer_FT_TI_LZ_PK>(ITC.LocationProperty);
 
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer2Grain, Player2Properties>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer_FT_TI_LZ_PK, PlayerProperties_FT_TI_LZ_PK>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
 
             base.Output.WriteLine("Before check 1");
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
@@ -42,9 +41,9 @@ namespace Orleans.Indexing.Tests
             await Task.Delay(ITC.DelayUntilIndexesAreUpdatedLazily);
 
             base.Output.WriteLine("Before check 2");
-            Assert.Equal(1, await getLocationCount(ITC.Seattle));
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));   // Deactivate does not affect Total indexes
 
-            p2 = base.GetGrain<IPlayer2Grain>(2);
+            p2 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(2);
             base.Output.WriteLine("Before check 3");
             Assert.Equal(ITC.Seattle, await p2.GetLocation());
 
@@ -52,6 +51,5 @@ namespace Orleans.Indexing.Tests
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
             base.Output.WriteLine("Done.");
         }
-#endif // ALLOW_FT_ACTIVE
     }
 }

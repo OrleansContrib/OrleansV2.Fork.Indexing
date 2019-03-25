@@ -111,11 +111,17 @@ Indexing is done on a per-interface, per-property basis; details are described b
 #### Partitioning Options
 Indexing is implemented within grains, which use storage providers to persist the index. In a cluster with multiple silos, the question naturally arises as to how the index values are partitioned across the various silos.
 ##### Entire Index in a Single Grain
-The simplest approach is to store the entire index as a single grain on whatever silo the Orleans activation process assigns it to. As the number of indexed grains grows, this single grain becomes a bottleneck.
+The simplest approach is to store the entire index as a single grain on whatever silo the Orleans activation process assigns it to. As the number of indexed grains grows, this single grain becomes a bottleneck. SingleBucket indexes must be Total indexes.
+
+SingleBucket indexes internally create a single bucket grain for the entire index; this bucket's hashtable contain an entry for each key value that has been stored for that index.
 ##### Partitioned Per Silo
-An index may be physically partitioned over Active grains, so grains and their index are on the same silo. This option is available only for Active indexes, and is the only partitioning option supported for Active indexes. This allows the silo to function as the unit of failure, since an index and the grains it references fail together, which simplifies recovery.
+An index may be physically partitioned such that grains and their index are on the same silo. This option is available only for Active indexes, and is the only partitioning option supported for Active indexes. This allows the silo to function as the single unit of failure, since an index and the grains it references fail together, which simplifies recovery.
+
+Indexes that are partitioned Per Silo may be thought of as SingleBucket Per Silo indexes; the implementation creates one index grain per Silo (implemented by a GrainService).
 ##### Partitioned Per Key Hash
-An index may be partitioned with a bucket for each key's hash value. Thus, one index grain contains entries for all indexed grains, across all silos, whose value for the indexed property hashes to a given value.
+An index may be partitioned with a bucket for each key's hash value. Thus, one index grain contains entries for all indexed grains, across all silos, whose value for the indexed property hashes to a given value. Per Key Hash indexes must be Total indexes.
+
+Unlike SingleBucket (and thus Per Silo) indexes, Per Key Hash indexes create a bucket grain for each individual key value that has been stored for an index. Thus, each bucket grain's hash table contains only the entries whose keys hashed to that bucket's hashcode (thus, with the default of an unlimited number of hash buckets for these indexes, there is usually only one key in each bucket's hash table).
 #### Eager vs. Lazy Index Updates
 The index hash buckets may be updated eagerly (the index updates the hash bucket directly), or lazily (the index enqueues a workflow record to perform the update).
 #### Consistency scheme

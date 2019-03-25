@@ -1,11 +1,14 @@
 namespace Orleans.Indexing.Tests
 {
-    public class TransactionalPlayerProperties : IPlayerProperties
+    public class PlayerProperties_TXN_TI_EG_PK : IPlayerProperties
     {
-        [TotalIndex(TotalIndexType.HashIndexSingleBucket, IsEager = true, NullValue = "0")]
         public int Score { get; set; }
 
         [TotalIndex(TotalIndexType.HashIndexPartitionedPerKeyHash, IsEager = true)]
         public string Location { get; set; }
+    }
+
+    public interface IPlayer_TXN_TI_EG_PK : IPlayerGrainTransactional, IIndexableGrain<PlayerProperties_TXN_TI_EG_PK>
+    {
     }
 }

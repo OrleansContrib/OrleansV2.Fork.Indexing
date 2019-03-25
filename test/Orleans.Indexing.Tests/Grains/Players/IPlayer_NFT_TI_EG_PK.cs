@@ -1,11 +1,14 @@
 namespace Orleans.Indexing.Tests
 {
-    public class TransactionalPlayerProperties : IPlayerProperties
+    public class PlayerProperties_NFT_TI_EG_PK : IPlayerProperties
     {
-        [TotalIndex(TotalIndexType.HashIndexSingleBucket, IsEager = true, NullValue = "0")]
         public int Score { get; set; }
 
         [TotalIndex(TotalIndexType.HashIndexPartitionedPerKeyHash, IsEager = true)]
         public string Location { get; set; }
+    }
+
+    public interface IPlayer_NFT_TI_EG_PK : IPlayerGrain, IIndexableGrain<PlayerProperties_NFT_TI_EG_PK>
+    {
     }
 }

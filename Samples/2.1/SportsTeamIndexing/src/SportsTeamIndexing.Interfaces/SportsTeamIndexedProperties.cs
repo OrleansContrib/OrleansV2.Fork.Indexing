@@ -22,13 +22,13 @@ namespace SportsTeamIndexing.Interfaces
         /// Using the ActiveIndexAttribute, with the key type and interface type left unspecified (they will be
         /// resolved by Indexing during assembly load).
         /// </summary>
-        [TotalIndex(TotalIndexType.HashIndexPartitionedByKeyHash, IsEager = true, IsUnique = false)]
+        [TotalIndex(TotalIndexType.HashIndexPartitionedPerKeyHash, IsEager = true, IsUnique = false)]
         public string Location { get; set; }
 
         /// <summary>
         /// The League index specification uses the default of non-unique.
         /// </summary>
-        [TotalIndex(TotalIndexType.HashIndexPartitionedByKeyHash, IsEager = true)]
+        [TotalIndex(TotalIndexType.HashIndexPartitionedPerKeyHash, IsEager = true)]
         public string League { get; set; }
 
         #region utilities for computed property QualifiedName
