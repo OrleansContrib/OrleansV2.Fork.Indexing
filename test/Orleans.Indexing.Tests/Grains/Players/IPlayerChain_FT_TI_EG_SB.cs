@@ -1,6 +1,6 @@
 namespace Orleans.Indexing.Tests
 {
-    public class PlayerChain1Properties : IPlayerProperties
+    public class PlayerChainProperties_FT_TI_EG_SB : IPlayerProperties
     {
         [TotalIndex(IsEager = true, NullValue = "0")]
         public int Score { get; set; }
@@ -9,7 +9,7 @@ namespace Orleans.Indexing.Tests
         public string Location { get; set; }
     }
 
-    public interface IPlayerChain_FT_TI_EG_SB : IPlayerGrain, IIndexableGrain<PlayerChain1Properties>
+    public interface IPlayerChain_FT_TI_EG_SB : IPlayerGrain, IIndexableGrain<PlayerChainProperties_FT_TI_EG_SB>
     {
     }
 }

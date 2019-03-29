@@ -18,7 +18,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of ActiveHashIndexPartitionedPerSiloImpl with 2 Silos
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup3()
+        public async Task Test_Lookup_3Grains_NFT_AI_EG_PS()
         {
             await base.StartAndWaitForSecondSilo();
 

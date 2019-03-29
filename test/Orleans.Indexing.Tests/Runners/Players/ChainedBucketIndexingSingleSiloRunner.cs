@@ -19,7 +19,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexSingleBucket with chained buckets
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup1()
+        public async Task Test_Lookup_10Grains_FT_TI_EG_SB()
         {
             var p1 = base.GetGrain<IPlayerChain_FT_TI_EG_SB>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -47,7 +47,7 @@ namespace Orleans.Indexing.Tests
 
             var locIdx = await base.GetAndWaitForIndex<string, IPlayerChain_FT_TI_EG_SB>(ITC.LocationProperty);
 
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayerChain_FT_TI_EG_SB, PlayerChain1Properties>(location);
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayerChain_FT_TI_EG_SB, PlayerChainProperties_FT_TI_EG_SB>(location);
 
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
             Assert.Equal(4, await getLocationCount(ITC.Kirkland));
@@ -80,7 +80,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of ActiveHashIndexPartitionedPerSiloImpl with 1 Silo
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup2()
+        public async Task Test_Lookup_3Grains_NFT_AI_EG_PS()
         {
             var p1 = base.GetGrain<IPlayer_NFT_AI_EG_PS>(1);
             await p1.SetLocation(ITC.Tehran);
@@ -111,20 +111,35 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexSingleBucket with chained buckets
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexUpdate3()
+        public async Task Test_Update_20Grains_FT_TI_EG_PK()
         {
-            // Different cities and IDs to avoid conflict with other IPlayerChain_FT_TI_EG_SB usage
+            await update_20Grains_FT_TI_EG_zz<IPlayerChain_FT_TI_EG_PK, PlayerChainProperties_FT_TI_EG_SB>();
+        }
+
+        /// <summary>
+        /// Tests basic functionality of HashIndexSingleBucket with chained buckets
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing")]
+        public async Task Test_Update_20Grains_FT_TI_EG_SB()
+        {
+            await update_20Grains_FT_TI_EG_zz<IPlayerChain_FT_TI_EG_SB, PlayerChainProperties_FT_TI_EG_SB>();
+        }
+
+        private async Task update_20Grains_FT_TI_EG_zz<TIGrain, TProperties>() where TIGrain : IGrainWithIntegerKey, IPlayerGrain, IIndexableGrain
+                                                                               where TProperties : IPlayerProperties
+        {
+            // Different cities and IDs to avoid conflict with other TIGrain usage
             // MaxEntriesPerBucket == 5
             var grains = (await Task.WhenAll(Enumerable.Range(0, 20).Select(async ii =>
             {
-                var grain = base.GetGrain<IPlayerChain_FT_TI_EG_SB>(ii * 100);
+                var grain = base.GetGrain<TIGrain>(ii * 100);
                 await grain.SetLocation(ITC.NewYork);
                 return grain;
             }))).ToArray();
 
-            var locIdx = await base.GetAndWaitForIndex<string, IPlayerChain_FT_TI_EG_SB>(ITC.LocationProperty);
+            var locIdx = await base.GetAndWaitForIndex<string, TIGrain>(ITC.LocationProperty);
 
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayerChain_FT_TI_EG_SB, PlayerChain1Properties>(location);
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<TIGrain, TProperties>(location);
 
             Assert.Equal(20, await getLocationCount(ITC.NewYork));
 
@@ -141,19 +156,34 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexSingleBucket with chained buckets
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
-        public async Task Test_Indexing_IndexUpdate3_Txn()
+        public async Task Test_Update_20Grains_TXN_TI_EG_PK()
+        {
+            await update_20Grains_TXN_TI_EG_zz<IPlayerChain_TXN_TI_EG_PK, PlayerChainProperties_TXN_TI_EG_SB>();
+        }
+
+        /// <summary>
+        /// Tests basic functionality of HashIndexSingleBucket with chained buckets
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_Update_20Grains_TXN_TI_EG_SB()
+        {
+            await update_20Grains_TXN_TI_EG_zz<IPlayerChain_TXN_TI_EG_SB, PlayerChainProperties_TXN_TI_EG_SB>();
+        }
+
+        private async Task update_20Grains_TXN_TI_EG_zz<TIGrain, TProperties>() where TIGrain : IGrainWithIntegerKey, IPlayerGrainTransactional, IIndexableGrain
+                                                                                where TProperties : IPlayerProperties
         {
             // MaxEntriesPerBucket == 5
             var grains = (await Task.WhenAll(Enumerable.Range(0, 20).Select(async ii =>
             {
-                var grain = base.GetGrain<IPlayerChain_TXN_TI_EG_SB>(ii);
+                var grain = base.GetGrain<TIGrain>(ii);
                 await grain.SetLocation(ITC.Seattle);
                 return grain;
             }))).ToArray();
 
-            var locIdx = await base.GetAndWaitForIndex<string, IPlayerChain_TXN_TI_EG_SB>(ITC.LocationProperty);
+            var locIdx = await base.GetAndWaitForIndex<string, TIGrain>(ITC.LocationProperty);
 
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<IPlayerChain_TXN_TI_EG_SB, PlayerChain1PropertiesTransactional>(location);
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<TIGrain, TProperties>(location);
 
             Assert.Equal(20, await getLocationCount(ITC.Seattle));
 
@@ -170,7 +200,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup4()
+        public async Task Test_Lookup_3Grains_NFT_TI_EG_PK()
         {
             var p1 = base.GetGrain<IPlayer_NFT_TI_EG_PK>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -205,7 +235,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
-        public async Task Test_Indexing_IndexLookup4_Txn()
+        public async Task Test_Lookup_3Grains_TXN_TI_EG_PK()
         {
             var p1 = base.GetGrain<IPlayer_TXN_TI_EG_PK>(1);
             await p1.SetLocation(ITC.Seattle);

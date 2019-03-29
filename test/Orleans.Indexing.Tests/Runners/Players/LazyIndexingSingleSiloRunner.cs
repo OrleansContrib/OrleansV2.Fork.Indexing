@@ -17,7 +17,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexSingleBucker
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup1()
+        public async Task Test_Lookup_3Grains_NFT_TI_LZ_SB()
         {
             IPlayer_NFT_TI_LZ_SB p1 = base.GetGrain<IPlayer_NFT_TI_LZ_SB>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -47,7 +47,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of ActiveHashIndexPartitionedPerSiloImpl with 1 Silo
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup2()
+        public async Task Test_Lookup_3Grains_NFT_AI_LZ_PS()
         {
             IPlayer_NFT_AI_LZ_PS p1 = base.GetGrain<IPlayer_NFT_AI_LZ_PS>(1);
             await p1.SetLocation(ITC.Tehran);
@@ -77,7 +77,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup4()
+        public async Task Test_Lookup_3Grains_NFT_TI_LZ_PK()
         {
             IPlayer_NFT_TI_LZ_PK p1 = base.GetGrain<IPlayer_NFT_TI_LZ_PK>(1);
             await p1.SetLocation(ITC.Seattle);

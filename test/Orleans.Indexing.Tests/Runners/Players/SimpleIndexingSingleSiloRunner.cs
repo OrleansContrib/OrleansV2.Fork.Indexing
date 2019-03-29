@@ -18,7 +18,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexSingleBucket
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup1()
+        public async Task Test_Lookup_3Grains_NFT_TI_EG_SB()
         {
             var p1 = base.GetGrain<IPlayer_NFT_TI_EG_SB>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -48,7 +48,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of Transactional HashIndexSingleBucket
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
-        public async Task Test_Indexing_IndexLookup1_Txn()
+        public async Task Test_Lookup_3Grains_TXN_TI_EG_SB()
         {
             var p1 = base.GetGrain<IPlayer_TXN_TI_EG_SB>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -78,7 +78,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of ActiveHashIndexPartitionedPerSiloImpl with 1 Silo
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup2()
+        public async Task Test_Lookup_3Grains_NFT_AI_EG_PS()
         {
             IPlayer_NFT_AI_EG_PS p1 = base.GetGrain<IPlayer_NFT_AI_EG_PS>(1);
             await p1.SetLocation(ITC.Tehran);
@@ -108,7 +108,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup4()
+        public async Task Test_Lookup_3Grains_NFT_TI_EG_PK()
         {
             var p1 = base.GetGrain<IPlayer_NFT_TI_EG_PK>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -138,7 +138,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
-        public async Task Test_Indexing_IndexLookup4_Txn()
+        public async Task Test_Lookup_3Grains_TXN_TI_EG_PK()
         {
             var p1 = base.GetGrain<IPlayer_TXN_TI_EG_PK>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -165,18 +165,18 @@ namespace Orleans.Indexing.Tests
         }
 
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_NFT_AI_EG_PS()
+        public async Task Test_Update_3Grains_NFT_AI_EG_PS()
         {
-            await Lookup_NFT_AI_xx_PS<IPlayer_NFT_AI_EG_PS, PlayerProperties_NFT_AI_EG_PS>();
+            await update_NFT_AI_yy_PS<IPlayer_NFT_AI_EG_PS, PlayerProperties_NFT_AI_EG_PS>();
         }
 
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_NFT_AI_LZ_PS()
+        public async Task Test_Update_3Grains_NFT_AI_LZ_PS()
         {
-            await Lookup_NFT_AI_xx_PS<IPlayer_NFT_AI_LZ_PS, PlayerProperties_NFT_AI_LZ_PS>();
+            await update_NFT_AI_yy_PS<IPlayer_NFT_AI_LZ_PS, PlayerProperties_NFT_AI_LZ_PS>();
         }
 
-        private async Task Lookup_NFT_AI_xx_PS<TIGrain, TProperties>() where TIGrain : IGrainWithIntegerKey, IPlayerGrain, IIndexableGrain
+        private async Task update_NFT_AI_yy_PS<TIGrain, TProperties>() where TIGrain : IGrainWithIntegerKey, IPlayerGrain, IIndexableGrain
                                                                        where TProperties : IPlayerProperties
         {
             var p1 = base.GetGrain<TIGrain>(1);
@@ -206,45 +206,55 @@ namespace Orleans.Indexing.Tests
 
             Assert.Equal(1, await getLocationCount(ITC.Seattle));
             Assert.Equal(1, await getLocationCount(ITC.Redmond));
+
+            // Test updates
+            await p1.SetLocation(ITC.NewYork);
+            await p2.SetLocation(ITC.LosAngeles);
+
+            Assert.Equal(0, await getLocationCount(ITC.Seattle));
+            Assert.Equal(0, await getLocationCount(ITC.Redmond));
+
+            Assert.Equal(1, await getLocationCount(ITC.NewYork));
+            Assert.Equal(1, await getLocationCount(ITC.LosAngeles));
         }
 
         /// <summary>
         /// Tests basic functionality of HashIndexPartitionedPerKey with two indexes
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_NFT_AI_EG_PSPS()
+        public async Task Test_Update_3Grains_NFT_AI_EG_PSPS()
         {
-            await lookup_NFT_AI_xx_PSPS<IPlayer_NFT_AI_EG_PSPS, PlayerProperties_NFT_AI_EG_PSPS>(isActive: true);
+            await update_NFT_xx_yy_PSPS<IPlayer_NFT_AI_EG_PSPS, PlayerProperties_NFT_AI_EG_PSPS>(isActive: true);
         }
 
         /// <summary>
         /// Tests basic functionality of HashIndexPartitionedPerKey with two indexes
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_NFT_AI_LZ_PSPS()
+        public async Task Test_Update_3Grains_NFT_AI_LZ_PSPS()
         {
-            await lookup_NFT_AI_xx_PSPS<IPlayer_NFT_AI_LZ_PSPS, PlayerProperties_NFT_AI_LZ_PSPS>(isActive: true);
+            await update_NFT_xx_yy_PSPS<IPlayer_NFT_AI_LZ_PSPS, PlayerProperties_NFT_AI_LZ_PSPS>(isActive: true);
         }
 
         /// <summary>
         /// Tests basic functionality of HashIndexPartitionedPerKey with two indexes
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_NFT_TI_EG_PSPS()
+        public async Task Test_Update_3Grains_NFT_TI_EG_PSPS()
         {
-            await lookup_NFT_AI_xx_PSPS<IPlayer_NFT_TI_EG_PKSB, PlayerProperties_NFT_AI_EG_PSPS>(isActive: false);
+            await update_NFT_xx_yy_PSPS<IPlayer_NFT_TI_EG_PKSB, PlayerProperties_NFT_AI_EG_PSPS>(isActive: false);
         }
 
         /// <summary>
         /// Tests basic functionality of HashIndexPartitionedPerKey with two indexes
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_NFT_TI_LZ_PSPS()
+        public async Task Test_Update_3Grains_NFT_TI_LZ_PSPS()
         {
-            await lookup_NFT_AI_xx_PSPS<IPlayer_NFT_TI_LZ_PKSB, PlayerProperties_NFT_AI_LZ_PSPS>(isActive: false);
+            await update_NFT_xx_yy_PSPS<IPlayer_NFT_TI_LZ_PKSB, PlayerProperties_NFT_AI_LZ_PSPS>(isActive: false);
         }
 
-        private async Task lookup_NFT_AI_xx_PSPS<TIGrain, TProperties>(bool isActive) where TIGrain : IGrainWithIntegerKey, IPlayerGrain, IIndexableGrain
+        private async Task update_NFT_xx_yy_PSPS<TIGrain, TProperties>(bool isActive) where TIGrain : IGrainWithIntegerKey, IPlayerGrain, IIndexableGrain
                                                                          where TProperties : IPlayerProperties
         { 
             var p1 = base.GetGrain<TIGrain>(1);
@@ -293,7 +303,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey with two indexes
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup5_Txn()
+        public async Task Test_Update_3Grains_TXN_TI_EG_PKSB()
         {
             var p1 = base.GetGrain<IPlayer_TXN_TI_EG_PKSB>(1);
             await p1.SetLocation(ITC.Seattle);

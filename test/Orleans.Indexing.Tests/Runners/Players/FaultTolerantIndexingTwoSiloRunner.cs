@@ -19,7 +19,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexSingleBucket
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup1()
+        public async Task Test_Lookup_3Grains_FT_TI_LZ_SB()
         {
             IPlayer_FT_TI_LZ_SB p1 = base.GetGrain<IPlayer_FT_TI_LZ_SB>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -50,7 +50,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup4()
+        public async Task Test_Lookup_3Grains_FT_TI_LZ_PK()
         {
             IPlayer_FT_TI_LZ_PK p1 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -82,7 +82,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic transactional functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
-        public async Task Test_Indexing_IndexLookup4_Txn()
+        public async Task Test_Lookup_3Grains_TXN_TI_EG_PK()
         {
             var p1 = base.GetGrain<IPlayer_TXN_TI_EG_PK>(1);
             await p1.SetLocation(ITC.Seattle);
@@ -112,7 +112,7 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup5()
+        public async Task Test_Lookup_5Grains_FT_TI_LZ_PK()
         {
             //await base.StartAndWaitForSecondSilo();
 

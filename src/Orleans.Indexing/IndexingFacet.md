@@ -775,10 +775,6 @@ These cannot be done using the current hash-based approach.
 Currently, if `TGrainState` does not inherit from `TProperties`, Indexing maps them by assuming the same property names. We could add an explicit mapping, either by attributes on `TState` and/or `TProperties`, by passing a Dictionary to IIndexedState.Write(), or by some other mapping specification.
 ### Unique Indexes Partitioned Per-Silo
 As stated above, Unique Indexes partitioned per Silo (physically) would require fan-out operations to all silos to ensure that the indexed property value is unique. It is not clear how useful this would be.
-### Fault-Tolerant Active Indexes
-The spurious grain reactivation cited above could be handled by omitting grain deactivations from the active workflow IDs, or more generally, by adding a flag to the workflow ID indicating whether it is fault-tolerant. If this is done, it is possible that a grain would enqueue an index-entry removal (pursuant to a grain deactivation), persist its state, and then crash. When the queue is reactivated, perhaps due to a request for the just-deactivated grain, it will process that enqueued index-entry removal. This should not be a problem, because this removal will be done before the index-entry add due to grain activation.
-
-If this is done, there are numerous FT Active tests ifdef'd out by "#if ALLOW_FT_ACTIVE", and one check in the runtime (FaultTolerantWorkflowIndexedState) under "#if !ALLOW_FT_ACTIVE".
 ### Clean Up LookupAsync for DSMI
 Currently the DSMI indexes dynamically invoke a LookupAsync method as described [above](#direct-storage-managed-indexes-dsmi). It would be cleaner to define an IOrleansIndexingStorageProvider interface.
 ### Default IIndexableGrain implementations

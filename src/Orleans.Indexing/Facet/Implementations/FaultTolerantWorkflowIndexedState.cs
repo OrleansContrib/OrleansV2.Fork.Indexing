@@ -87,13 +87,11 @@ namespace Orleans.Indexing.Facet
                 return;
             }
 
-#if !ALLOW_FT_ACTIVE
             if (interfaceToUpdatesMap.UpdateReason.IsActivationChange())
             {
                 throw new InvalidOperationException("Active indexes cannot be fault-tolerant. This misconfiguration should have" +
                                                     " been detected on silo startup. Check ApplicationPartsIndexableGrainLoader for the reason.");
             }
-#endif // !ALLOW_FT_ACTIVE
 
             if (updateIndexesEagerly)
             {

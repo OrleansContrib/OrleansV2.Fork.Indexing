@@ -15,7 +15,6 @@ using System.Runtime.CompilerServices;
 [assembly: GenerateSerializer(typeof(MemberUpdateOverriddenMode))]
 [assembly: GenerateSerializer(typeof(IndexMetaData))]
 [assembly: GenerateSerializer(typeof(IndexUpdateGenerator))]
-[assembly: GenerateSerializer(typeof(ActiveHashIndexPartitionedPerKey<,>))]
 [assembly: GenerateSerializer(typeof(TotalHashIndexPartitionedPerKey<,>))]
 [assembly: GenerateSerializer(typeof(HashIndexBucketState<,>))]
 [assembly: GenerateSerializer(typeof(HashIndexSingleBucketEntry<>))]
