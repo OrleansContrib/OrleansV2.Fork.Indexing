@@ -177,7 +177,7 @@ namespace Orleans.Indexing
             }
         }
 
-        internal static async Task RegisterIndexWorkflowQueues(SiloIndexManager sim, Type grainInterfaceType, Type grainClassType, bool isFaultTolerant)
+        internal static async Task RegisterIndexWorkflowQueues(SiloIndexManager sim, Type grainInterfaceType, bool isFaultTolerant)
         {
             for (int i = 0; i < sim.NumWorkflowQueuesPerInterface; ++i)
             {

@@ -113,7 +113,7 @@ namespace Orleans.Indexing.Tests
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
         public async Task Test_Update_20Grains_FT_TI_EG_PK()
         {
-            await update_20Grains_FT_TI_EG_zz<IPlayerChain_FT_TI_EG_PK, PlayerChainProperties_FT_TI_EG_SB>();
+            await update_20Grains_FT_TI_EG_zz<IPlayerChain_FT_TI_EG_PK, PlayerChainProperties_FT_TI_EG_PK>();
         }
 
         /// <summary>

@@ -49,11 +49,11 @@ namespace Orleans.Indexing
         internal async static Task<IndexRegistry> GetIndexRegistry(ApplicationPartsIndexableGrainLoader loader, Type[] grainClassTypes)
         {
             var registry = new IndexRegistry();
-            foreach (var grainClassType in grainClassTypes)
+            foreach (var grainClassType in grainClassTypes.Where(classType => typeof(IIndexableGrain).IsAssignableFrom(classType)))
             {
-                if (registry.ContainsKey(grainClassType))
+                if (registry.ContainsGrainType(grainClassType))
                 {
-                    throw new InvalidOperationException($"Precondition violated: GetGrainClassIndexes should not encounter a duplicate type ({IndexUtils.GetFullTypeName(grainClassType)})");
+                    throw new InvalidOperationException($"Precondition violated: GetIndexRegistry should not encounter a duplicate grain class type ({IndexUtils.GetFullTypeName(grainClassType)})");
                 }
                 await GetIndexesForASingleGrainType(loader, registry, grainClassType);
             }
@@ -63,25 +63,25 @@ namespace Orleans.Indexing
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private async static Task GetIndexesForASingleGrainType(ApplicationPartsIndexableGrainLoader loader, IndexRegistry registry, Type grainClassType)
         {
-            if (!typeof(IIndexableGrain).IsAssignableFrom(grainClassType))
-            {
-                return;
-            }
+            // First see if any indexed interfaces on this grain were already encountered on another grain (unless we're
+            // in validation mode, which doesn't create the indexes).
+            var indexedInterfacesAndProperties = EnumerateIndexedInterfacesForAGrainClassType(grainClassType).ToList();
+            var indexedInterfaces = loader != null
+                    ? new HashSet<Type>(indexedInterfacesAndProperties.Where(tup => registry.ContainsKey(tup.interfaceType)).Select(tup => tup.interfaceType))
+                    : new HashSet<Type>();
 
-            if (registry.ContainsGrainType(grainClassType))
-            {
-                throw new InvalidOperationException($"Grain class type {grainClassType.Name} has already been added to the registry");
-            }
-
-            bool? grainIndexesAreEager = null;
-            var indexedInterfaces = new List<Type>();
+            var grainIndexesAreEager = indexedInterfaces.Count > 0 ? registry[indexedInterfaces.First()].HasAnyEagerIndex : default(bool?);
             var consistencyScheme = grainClassType.GetConsistencyScheme();
 
-            foreach (var (grainInterfaceType, propertiesClassType) in EnumerateIndexedInterfacesForAGrainClassType(grainClassType).Where(tup => !registry.ContainsKey(tup.interfaceType)))
+            // Now find all indexed interfaces we're seeing for the first time (again, unless we're in validation mode).
+            foreach (var (grainInterfaceType, propertiesClassType) in indexedInterfacesAndProperties)
             {
-                grainIndexesAreEager = await CreateIndexesForASingleInterface(loader, registry, propertiesClassType, grainInterfaceType,
-                                                                                grainClassType, consistencyScheme, grainIndexesAreEager);
-                indexedInterfaces.Add(grainInterfaceType);
+                if (!indexedInterfaces.Contains(grainInterfaceType))
+                {
+                    grainIndexesAreEager = await CreateIndexesForASingleInterface(loader, registry, propertiesClassType, grainInterfaceType,
+                                                                                    grainClassType, consistencyScheme, grainIndexesAreEager);
+                    indexedInterfaces.Add(grainInterfaceType);
+                }
             }
 
             IReadOnlyDictionary<string, object> getNullValuesDictionary()
@@ -114,7 +114,10 @@ namespace Orleans.Indexing
                                         .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.nullValue);
             }
 
-            registry.SetGrainIndexes(grainClassType, indexedInterfaces.ToArray(), getNullValuesDictionary());
+            if (indexedInterfaces.Count > 0)
+            {
+                registry.SetGrainIndexes(grainClassType, indexedInterfaces.ToArray(), getNullValuesDictionary());
+            }
         }
 
         internal static IEnumerable<(Type interfaceType, Type propertiesType)> EnumerateIndexedInterfacesForAGrainClassType(Type grainClassType)
@@ -203,7 +206,7 @@ namespace Orleans.Indexing
             registry[grainInterfaceType] = indexesOnInterface;
             if (interfaceHasLazyIndex && loader != null)
             {
-                await loader.RegisterWorkflowQueues(grainInterfaceType, grainClassType, consistencyScheme == ConsistencyScheme.FaultTolerantWorkflow);
+                await loader.RegisterWorkflowQueues(grainInterfaceType, consistencyScheme == ConsistencyScheme.FaultTolerantWorkflow);
             }
             return grainIndexesAreEager;
         }
@@ -215,11 +218,11 @@ namespace Orleans.Indexing
             this.logger.Info($"Index created: Interface = {grainInterfaceType.Name}, property = {propertiesArg.Name}, index = {indexName}");
         }
 
-        private async Task RegisterWorkflowQueues(Type grainInterfaceType, Type grainClassType, bool isFaultTolerant)
+        private async Task RegisterWorkflowQueues(Type grainInterfaceType, bool isFaultTolerant)
         {
             if (this.IsInSilo)
             {
-                await IndexFactory.RegisterIndexWorkflowQueues(this.siloIndexManager, grainInterfaceType, grainClassType, isFaultTolerant);
+                await IndexFactory.RegisterIndexWorkflowQueues(this.siloIndexManager, grainInterfaceType, isFaultTolerant);
             }
         }
 

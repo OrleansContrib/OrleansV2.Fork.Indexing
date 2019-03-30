@@ -49,7 +49,7 @@ namespace Orleans.Indexing
                 var tGrainState = state.GetType();
                 object mapStateToProperties()
                 {
-                    // Copy named property values from this.State to _props. The set of property names will not change.
+                    // Copy named property values from this.State to indexes.Properties. The set of property names will not change.
                     // Note: TProperties is specified on IIndexableGrain<TProperties> with a "where TProperties: new()" constraint.
                     var properties = indexes.Properties ?? Activator.CreateInstance(tProperties);
                     tProperties.GetProperties(BindingFlags.Public | BindingFlags.Instance).ForEach(p => p.SetValue(properties, tGrainState.GetProperty(p.Name).GetValue(state)));

@@ -33,6 +33,7 @@ namespace Orleans.Indexing
 
         internal bool HasAnyUniqueIndex => this.Any(indexInfo => indexInfo.MetaData.IsUniqueIndex);
         internal bool HasAnyTotalIndex => this.Any(indexInfo => indexInfo.IndexInterface.IsTotalIndex());
+        internal bool HasAnyEagerIndex => this.Any(indexInfo => indexInfo.MetaData.IsEager);
 
         internal IEnumerable<string> Keys => this.IndexesByName.Keys;
 

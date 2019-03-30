@@ -1,6 +1,7 @@
 using Xunit.Abstractions;
 using Xunit;
 using Orleans.Indexing.Tests.MultiInterface;
+using Orleans.Indexing.Tests.SharedGrainInterfaces;
 
 namespace Orleans.Indexing.Tests
 {
@@ -162,16 +163,22 @@ namespace Orleans.Indexing.Tests
     #region DirectStorageManagedIndexes
 
     [TestCategory("BVT"), TestCategory("Indexing")]
-    public class MultiIndex_DSMI_EG : MultiIndex_DSMI_EG_Runner, IClassFixture<WorkflowDSMI_EG_IndexingFixture>
+    public class MultiIndex_DSMI_EG : MultiIndex_DSMI_EG_Runner, IClassFixture<DSMI_EG_IndexingTestFixture>
     {
-        public MultiIndex_DSMI_EG(WorkflowDSMI_EG_IndexingFixture fixture, ITestOutputHelper output) : base(fixture, output) { }
+        public MultiIndex_DSMI_EG(DSMI_EG_IndexingTestFixture fixture, ITestOutputHelper output) : base(fixture, output) { }
     }
 
     [TestCategory("BVT"), TestCategory("Indexing")]
-    public class MultiIndex_DSMI_LZ : MultiIndex_DSMI_LZ_Runner, IClassFixture<WorkflowDSMI_LZ_IndexingFixture>
+    public class MultiIndex_DSMI_LZ : MultiIndex_DSMI_LZ_Runner, IClassFixture<DSMI_LZ_IndexingTestFixture>
     {
-        public MultiIndex_DSMI_LZ(WorkflowDSMI_LZ_IndexingFixture fixture, ITestOutputHelper output) : base(fixture, output) { }
+        public MultiIndex_DSMI_LZ(DSMI_LZ_IndexingTestFixture fixture, ITestOutputHelper output) : base(fixture, output) { }
     }
 
     #endregion // DirectStorageManagedIndexes
+
+    [TestCategory("BVT"), TestCategory("Indexing")]
+    public class SharedGrainInterface : SharedGrainInterfaceRunner, IClassFixture<IndexingTestFixture>
+    {
+        public SharedGrainInterface(IndexingTestFixture fixture, ITestOutputHelper output) : base(fixture, output) { }
+    }
 }

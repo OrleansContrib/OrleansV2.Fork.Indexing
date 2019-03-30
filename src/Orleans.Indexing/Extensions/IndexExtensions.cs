@@ -9,7 +9,8 @@ namespace Orleans.Indexing
     internal static class IndexExtensions
     {
         /// <summary>
-        /// An extension method to intercept the workflow queue's calls to DirectApplyIndexUpdateBatch on an Index
+        /// An extension method to intercept the workflow queue's calls to DirectApplyIndexUpdateBatch on an Index,
+        /// to ensure that for a PerSilo index (which has its own grain), the silo of the indexed grain is used.
         /// </summary>
         public static Task<bool> ApplyIndexUpdateBatch(this IIndexInterface index, SiloIndexManager siloIndexManager,
                                                         Immutable<IDictionary<IIndexableGrain, IList<IMemberUpdate>>> iUpdates,
@@ -28,7 +29,8 @@ namespace Orleans.Indexing
         }
 
         /// <summary>
-        /// An extension method to intercept the calls to DirectApplyIndexUpdate on an Index
+        /// An extension method to intercept the calls to DirectApplyIndexUpdate on an Index,
+        /// to ensure that for a PerSilo index (which has its own grain), the silo of the indexed grain is used.
         /// </summary>
         internal static Task<bool> ApplyIndexUpdate(this IIndexInterface index, SiloIndexManager siloIndexManager,
                                                     IIndexableGrain updatedGrain, Immutable<IMemberUpdate> update,

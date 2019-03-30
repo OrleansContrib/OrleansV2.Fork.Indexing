@@ -1,7 +1,8 @@
 # Indexing Facet Design
 
-<!-- markdown-toc inserts the Table of Contents between the toc/tocstop comments; commandline is: markdown-toc -i <this file> -->
-<!-- markdown-toc truncates `IInterface<TProperties>` before the <TProperties>, so manually enter the anchor on the heading using the name markdown-toc generates (markdown-toc does not pick up names in anchor definitions on section headers; you must use the names it generates). Then after each TOC creation, re-add <TProperties> or <TGrainState> before the closing backtick. -->
+<!-- markdown-toc (by Jon Schlinkert) inserts the Table of Contents between the toc/tocstop comments; commandline is: markdown-toc -i <this file> -->
+<!-- markdown-toc truncates `IInterface<TProperties>` before the <TProperties>, so manually enter the anchor on the heading using the name markdown-toc generates (markdown-toc does not pick up names in anchor definitions on section headers; you must use the names it generates). Then after each TOC creation, re-add <TProperties> or <TGrainState> before the closing backtick.
+The same "manually enter the anchor" requirement applies to headers with a period, such as "Active vs. Total Index...". -->
 
 <!-- toc -->
 
@@ -27,6 +28,7 @@
     + [Interaction of Indexed Properties and Grain State](#interaction-of-indexed-properties-and-grain-state)
       - [NullValue for Non-Nullable Property Types](#nullvalue-for-non-nullable-property-types)
   * [Application Grain Interfaces](#application-grain-interfaces)
+    + [Multiple Grain Implementations Of An Indexed Grain Interface](#multiple-grain-implementations-of-an-indexed-grain-interface)
   * [Indexing Facet Specification](#indexing-facet-specification)
     + [Attribute Specification](#attribute-specification)
       - [Indexing Consistency Scheme](#indexing-consistency-scheme)
@@ -47,8 +49,10 @@
     + [Mixing Total and Active Indexes on a Single Grain](#mixing-total-and-active-indexes-on-a-single-grain)
   * [Testing Indexes](#testing-indexes)
     + [*Player\** Tests](#player-tests)
+      - [*TransactionalPlayer\** Tests](#transactionalplayer-tests)
     + [*MultiIndex\** Tests](#multiindex-tests)
     + [*MultiInterface\** Tests](#multiinterface-tests)
+    + [*SharedGrainInterface* Tests](#sharedgraininterface-tests)
     + [*SportsTeamIndexing* Sample](#sportsteamindexing-sample)
 - [Orleans Level](#orleans-level)
   * [Reading Property Attributes and Creating Indexes](#reading-property-attributes-and-creating-indexes)
@@ -60,11 +64,11 @@
       - [`IndexableGrain<TProperties>`](#indexablegrain)
     + [Facet-based](#facet-based)
       - [Facet Attribute](#facet-attribute)
-      - [The `IIndexedState<TGrainState>` Interface](#-the-iindexedstate-interface)
+      - [The `IIndexedState<TGrainState>` Interface](#the-iindexedstate-interface)
         * [Access To The Grain State](#access-to-the-grain-state)
         * [Orleans-Supplied `IIndexedState<TGrainState>` Implementations](#orleans-supplied-iindexedstate-implementations)
   * [Data Integrity Considerations](#data-integrity-considerations)
-  * [Active vs Total Index Implementations](#active-vs-total-index-implementations)
+  * [Active vs. Total Index Implementations](#active-vs-total-index-implementations)
 - [Constraints on Indexing](#constraints-on-indexing)
   * [Incompatible definitions](#incompatible-definitions)
     + [Total Indexes Cannot be Partitioned Per-Silo](#total-indexes-cannot-be-partitioned-per-silo)
@@ -76,7 +80,6 @@
     + [Fault-Tolerant Indexes Cannot Be Eager](#fault-tolerant-indexes-cannot-be-eager)
     + [Cannot Define Both Eager And Lazy Indexes on a Single Grain](#cannot-define-both-eager-and-lazy-indexes-on-a-single-grain)
   * [Only One Indexing Consistency Scheme (FT, NFT, TRX) per Grain](#only-one-indexing-consistency-scheme-ft-nft-trx-per-grain)
-  * [Single Implementation Class per Grain Interface](#single-implementation-class-per-grain-interface)
   * [Only One Index per Query (==)](#only-one-index-per-query-)
     + [No Compound Indexes](#no-compound-indexes)
     + [No Conjunctions (&&)](#no-conjunctions-)
@@ -90,7 +93,6 @@
   * [Negations and Ranges](#negations-and-ranges)
   * [Adding Explicit TState-to-TProperties Name Mapping](#adding-explicit-tstate-to-tproperties-name-mapping)
   * [Unique Indexes Partitioned Per-Silo](#unique-indexes-partitioned-per-silo)
-  * [Fault-Tolerant Active Indexes](#fault-tolerant-active-indexes)
   * [Clean Up LookupAsync for DSMI](#clean-up-lookupasync-for-dsmi)
   * [Default IIndexableGrain implementations](#default-iindexablegrain-implementations)
 
@@ -122,7 +124,7 @@ Indexes that are partitioned Per Silo may be thought of as SingleBucket Per Silo
 An index may be partitioned with a bucket for each key's hash value. Thus, one index grain contains entries for all indexed grains, across all silos, whose value for the indexed property hashes to a given value. Per Key Hash indexes must be Total indexes.
 
 Unlike SingleBucket (and thus Per Silo) indexes, Per Key Hash indexes create a bucket grain for each individual key value that has been stored for an index. Thus, each bucket grain's hash table contains only the entries whose keys hashed to that bucket's hashcode (thus, with the default of an unlimited number of hash buckets for these indexes, there is usually only one key in each bucket's hash table).
-#### Eager vs. Lazy Index Updates
+#### <a name="eager-vs-lazy-index-updates"></a>Eager vs. Lazy Index Updates
 The index hash buckets may be updated eagerly (the index updates the hash bucket directly), or lazily (the index enqueues a workflow record to perform the update).
 #### Consistency scheme
 The following options define how indexing assures consistency in the face of conflict or failure.
@@ -321,8 +323,11 @@ The presence of "#if USE_TRANSACTIONS" illustrates switching between indexing co
 
 In addition to the Task-based property accessors, this interface also defines a method SaveAsync to save the state of the Grain and its indexes.
 
+#### Multiple Grain Implementations Of An Indexed Grain Interface
+It is possible to implement an indexed grain interface on multiple grain classes; the [*SharedGrainInterface* Tests](#sharedgraininterface-tests) illustrate how to do this. The key point to doing this is to call `IGrainFactory.GetGrain()` with the grainClassNamePrefix set to a unique prefix of the implementing class name (if it is not unique, or if this is not done, then Orleans will throw an exception due to ambiguous class resolution). The tests illustrate passing `nameof(implementingClass)` for this parameter. Care must be taken that one implementing class name is not a substring of another implementing class name.
+
 ### Indexing Facet Specification
-The grain developer specifies which indexing consistency scheme to use via a Facet: this is done by adding an [`IIndexedState<TGrainState>`](#-the-iindexedstate-interface) parameter to an indexed grain's constructor, and decorating it with an attribute that identifies the indexing consistency scheme to use for that grain. The Indexing implementation and the underlying Orleans Facet System create an appropriate subclass of IIndexedState to pass as the actual constructor argument.
+The grain developer specifies which indexing consistency scheme to use via a Facet: this is done by adding an [`IIndexedState<TGrainState>`](#the-iindexedstate-interface) parameter to an indexed grain's constructor, and decorating it with an attribute that identifies the indexing consistency scheme to use for that grain. The Indexing implementation and the underlying Orleans Facet System create an appropriate subclass of IIndexedState to pass as the actual constructor argument.
 
 #### Attribute Specification
 The attribute determines the consistency scheme and storage provider to use for this grain.
@@ -566,12 +571,18 @@ These use a number X for a grouping of tests, with the following form:
 - `IPlayerState` defines an additional non-indexed property: Email.
 - `IPlayerGrain` defines all properties of a player, expressed in paired async Get/Set properties returning Tasks.
   - For these tests, players have three properties: Location and Score may be indexed, and Email is not indexed.
-- `PlayerXProperties : IPlayerProperties` defines the indexed properties of the player.
-- `IPlayerXGrain : IPlayerGrain, IIndexableGrain<PlayerXProperties>` defines the interface for the player implementation.
-- `PlayerGrain<TState, TProps> : IndexableGrain<TState, TProps>, IPlayerGrain where TState : IPlayerState where TProps : new()` is the base class implementing common functionality for all player grains:
+- [test/Orleans.Indexing.Tests/Grains/ITestIndexProperties.cs](/test/Orleans.Indexing.Tests/Grains/ITestIndexProperties.cs) describes the abbreviations used in the file and test names (including the interface names and class names for properties and grains, but *not* the property names; MultiInterface uses the properties interface name instead), but MultiInterface does not otherwise use ITestIndexProperties. These abbreviations are inserted where "_*" is shown in the following description.
+- `PlayerProperties_* : IPlayerProperties` defines the indexed properties of the player.
+- `IPlayer_* : IPlayerGrain, IIndexableGrain<PlayerProperties_*>` defines the interface for the player implementation.
+- `PlayerGrain*<TState, TProps> : IndexableGrain<TState, TProps>, IPlayerGrain where TState : IPlayerState where TProps : new()` is the base class implementing common functionality for all player grains, where:
   - TState must be IPlayerState or a subclass
   - TProps must be a class (and should derive from IPlayerProperties)
-- `PlayerXGrain : PlayerGrain<PlayerXGrainState, PlayerXProperties>, IPlayerXGrain` defines the implementing class for PlayerX.
+  - "*" is one of "NonFaultTolerant", "FaultTolerant", or "Transactional"
+    - All of these inherit the base PlayerGrain implementation
+- `Player_* : PlayerGrain*<PlayerGrainState, PlayerProperties_*>, IPlayer_*` defines the implementing class for the IPlayer_* grain interface.
+
+##### *TransactionalPlayer\** Tests
+The *Player* tests also include tests for rolling back inserts and updates to the indexes.
 
 #### *MultiIndex\** Tests
 The *MultiIndex\** series of tests is separate from the *Player* series. This series of tests focuses on multiple indexes per grain.
@@ -590,6 +601,10 @@ The *MultiInterface\** series of tests focuses on multiple indexed interfaces, e
   - [test/Orleans.Indexing.Tests/Grains/ITestIndexProperties.cs](/test/Orleans.Indexing.Tests/Grains/ITestIndexProperties.cs) describes the abbreviations used in the file and test names (except for those related to property names; MultiInterface uses the properties interface name instead), but MultiInterface does not otherwise use ITestIndexProperties.
     - For example, MultiInterface_AI_EG_Runner defines all interfaces, classes, and tests to implement testing for Eager Active indexes.
   - Testing uses IPersonGrain, IJobGrain, and IEmployeeGrain indexed interfaces on an Employee grain.
+
+#### *SharedGrainInterface* Tests
+There is a single test runner that tests (and illustrates how to use) an indexed grain interface that is implemented on multiple grain classes. These are implemented in a single file, [test/Orleans.Indexing.Tests/Runners/SharedGrainInterfaceRunner.cs](/test/Orleans.Indexing.Tests/Runners/SharedGrainInterfaceRunner.cs), which includes all definitions for grain interfaces and for state, grain, and grain classes.
+
 #### *SportsTeamIndexing* Sample
 The SportsTeamIndexing sample at Samples\2.1\SportsTeamIndexing illustrates creating a simple indexed application, and serves as an example for creating tests outside the Unit Testing framework. It also illustrates some of the changes required when moving an application's consistency scheme from Workflow to Transactions.
 
@@ -632,8 +647,8 @@ An application grain inherits from this if its indexes do not have to be fault-t
 An application grain inherits from this if its indexes must be fault-tolerant. With fault-tolerant indexing, the in-flight workflows and queues are persisted along with the Grain state (the implementation swaps the base State with a wrapper that includes the original base State as well as the set of in-flight workflow IDs and the active queues). When the grain is reactivated (such as if a server crashed during a previous call), the in-flight workflow state is restored with it, and any pending workflows resume executing. 
 #### Facet-based
 ##### Facet Attribute
-The attribute determines whether workflow (fault-tolerant or non-fault-tolerant) or transactional indexing is to be used, and specifies any necessary parameters between the two. See [Facet Specification](#facet-specification) above for more information.
-##### <a name="iindexedState"></a> The `IIndexedState<TGrainState>` Interface
+The attribute determines whether workflow (fault-tolerant or non-fault-tolerant) or transactional indexing is to be used, and specifies any necessary parameters between the two. See [Indexing Facet Specification](#indexing-facet-specification) above for more information.
+##### <a name="the-iindexedState-interface"></a>The `IIndexedState<TGrainState>` Interface
 This is the base class for the indexing Facet implementation. One `IIndexedState` parameter must be on at least one constructor of the indexed grain (there is validation to ensure that there is exactly one for any constructor of a grain that implements a `TIIndexableGrain`, and that there is at least one constructor that has such a parameter). 
 
 The implementation of this interface coordinates the writing of all indexed interfaces defined on the grain. It will retrieve the list of indexed interfaces for the grain from caches that are created during assembly load when indexes are read, validated, and created. It uses the IndexRegistry to maintain cached per-grain-class lists of interfaces and their indexes and properties to do the mapping from `TGrainState` to `TProperties`. If `TGrainState` inherits from `TProperties`, then a simple assignment to the `TProperties` instance is possible; otherwise, an ephemeral instance of `TProperties` is created and the `TGrainState`'s properties are mapped to the corresponding `TProperties` properties. If the index is workflow-based, the indexedState includes the grain state update in the workflow appropriately.
@@ -649,7 +664,7 @@ When local state is buffered in an instance of `TGrainState` or `TProperties`, c
 
 When Transactional indexes are used, the grain should not buffer the state itself. Any such state buffered in the grain is outside the transaction space and thus may contain inconsistent values in the event of a rollback.
 
-###### Orleans-Supplied `IIndexedState<TGrainState>` Implementations
+###### <a name="orleans-supplied-iindexedstate-implementations"></a>Orleans-Supplied `IIndexedState<TGrainState>` Implementations
 Orleans Indexing supplies three interfaces (and their implementation classes) deriving from `IIndexedState`; the workflow implementations contain the implementation moved from the previous inheritance-based approach. An indexed Grain class should store the IIndexedState as a data member assigned from the constructor's facet parameter. The Orleans implementations for the Orleans-provided interfaces are injected at Silo startup time, and an application can define its own as well.
 
 With the exception of the workflow ID set methods on IIndexedGrain, which an indexed Grain implements by simply passing the call along to the matching methods on the IIndexedState, the details of the various IIndexedState implementations are completely opaque to the indexed grain. The indexed grain class specifies the desired implementation on the Facet attribute of the IIndexedState constructor parameter, and the IIndexedState is instantiated with the specified implementation.
@@ -713,8 +728,7 @@ For Fault-tolerant workflow indexes, we provide "eventual consistency". Fault-to
 Non-fault-tolerant indexes do not provide the above guarantees. For these indexes, the write operations are essentially parallel executions of the task set {[write indexes], write grain state}, where [write indexes] depends on Eager vs. Lazy; for Eager it is [write to index hash buckets], and for Lazy it is [write to index workflow queues]. Thus, it is possible for inconsistencies to result from failures during these tasks.
 
 Transactional indexes become part of any existing [Orleans Transaction](http://dotnet.github.io/orleans/Documentation/grains/transactions.html), or create one if none exists. 
-### Active vs Total Index Implementations
-<!-- Note: don't put the period after "vs." because the generated toc link can't be followed -->
+### <a name="active-vs-total-index-implementations"></a>Active vs. Total Index Implementations
 These indexes operate very similarly, and it likely would have been possible to implement the distinction via an IndexAttribute parameter rather than separate classes. However, the current API does enforce the constraint against Total indexes being partitioned per-silo in a straightforward way: there is no way to specify such an index (the TotalIndexType does not include PartitionedPerSilo).
 
 In the code, the main difference is that Active indexes are updated on grain activation (when the grain's entries are added to the index buckets) and deactivation (when the grain's entries are removed from the index buckets). This is not done for a Total index, because when we deactivate a grain, by definition we do not remove its entries from Total indexes--and thus, when we activate a grain, its Total index entries are already present if the grain was previously activated, and if not, then there is no non-default state and thus no index entries should be created. (This correctness is ensured by prohibiting per-silo partitioning of Total indexes.)
@@ -745,10 +759,6 @@ Transactional indexes do not use the workflow queues, so they cannot be Lazy.
 Allowing both Eager and Lazy indexes on a single grain would lead to potential difficulties in ensuring correctness.
 ### Only One Indexing Consistency Scheme (FT, NFT, TRX) per Grain
 Orleans only supports a single indexing consistency scheme per Grain class: fault-tolerant or non-fault-tolerant workflow, or transactional. This is reflected in the presence of only a single `IIndexedState` facet parameter.
-### Single Implementation Class per Grain Interface
-Because GetGrain() must find only one implementation class for a given grain interface, we cannot support some scenarios such as having the same TIIndexedGrainInterface on multiple Grain implementation classes or hierarchies of `TIIndexableGrain`s.
-
-There is an overload of GetGrain() that allows specifying the prefix of the implementation class. This would allow resolution of a single implementation class, but the capability of passing this through the indexing queries has not yet been added.
 ### <a name="only-one-index-per-query-"></a>Only One Index per Query (==)
 The Orleans query syntax currently allows only a single equivalence condition, e.g.: where team.Name == "Seahawks". Following are some specific scenarios that are not supported, together with workarounds where possible.
 #### No Compound Indexes

@@ -118,7 +118,7 @@ namespace Orleans.Indexing.Facet
                 IEnumerable<Task> getIndexUpdateTasks(Type grainInterfaceType, IReadOnlyDictionary<string, IMemberUpdate> updates)
                 {
                     var indexInterfaces = this._grainIndexes[grainInterfaceType];
-                    foreach (var (indexName, mu) in updates.Where(kvp => kvp.Value.OperationType != IndexOperationType.None))
+                    foreach (var (indexName, mu) in updates.Where(kvp => kvp.Value.OperationType != IndexOperationType.None).OrderBy(kvp => kvp.Key))
                     {
                         var indexInfo = indexInterfaces.NamedIndexes[indexName];
                         var updateToIndex = new MemberUpdateOverriddenMode(mu, IndexUpdateMode.Transactional) as IMemberUpdate;
@@ -128,8 +128,10 @@ namespace Orleans.Indexing.Facet
                 }
 
                 // Execute each index update individually, in an invariant sequence, to avoid deadlocks when locking multiple index buckets.
+                // The invariant sequence must apply across all grains, since a single indexed interface may be on multiple grains.
+                // Therefore, order by interface name and within that by index name.
                 // TODO performance: safely execute multiple index updates in parallel.
-                foreach (var updateTask in interfaceToUpdatesMap.SelectMany(kvp => getIndexUpdateTasks(kvp.Key, kvp.Value)))
+                foreach (var updateTask in interfaceToUpdatesMap.OrderBy(kvp => kvp.Key.FullName).SelectMany(kvp => getIndexUpdateTasks(kvp.Key, kvp.Value)))
                 {
                     await updateTask;
                 }

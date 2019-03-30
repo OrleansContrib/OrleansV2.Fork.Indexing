@@ -38,7 +38,7 @@ namespace Orleans.Indexing.Tests
         }
     }
 
-    public class WorkflowDSMIndexingFixture : IndexingTestFixture
+    public class DSMIndexingTestFixture : IndexingTestFixture
     {
         internal class SiloBuilderConfiguratorDSMI : ISiloBuilderConfigurator
         {
@@ -53,7 +53,7 @@ namespace Orleans.Indexing.Tests
         }
     }
 
-    public class WorkflowDSMI_EG_IndexingFixture : WorkflowDSMIndexingFixture
+    public class DSMI_EG_IndexingTestFixture : DSMIndexingTestFixture
     {
         internal override void AddSiloBuilderConfigurator(TestClusterBuilder builder) => builder.AddSiloBuilderConfigurator<SiloBuilderConfiguratorDSMI_EG>();
 
@@ -63,7 +63,7 @@ namespace Orleans.Indexing.Tests
         }
     }
 
-    public class WorkflowDSMI_LZ_IndexingFixture : WorkflowDSMIndexingFixture
+    public class DSMI_LZ_IndexingTestFixture : DSMIndexingTestFixture
     {
         internal override void AddSiloBuilderConfigurator(TestClusterBuilder builder) => builder.AddSiloBuilderConfigurator<SiloBuilderConfiguratorDSMI_LZ>();
 
