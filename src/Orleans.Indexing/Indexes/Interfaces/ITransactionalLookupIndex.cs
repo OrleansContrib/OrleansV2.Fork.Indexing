@@ -5,8 +5,9 @@ namespace Orleans.Indexing
 {
     /// <summary>
     /// Provide Transaction-initializing wrappers for <see cref="IIndexInterface"/>. These are because
-    /// lookups for Transactional Indexes must be within a transaction, and this allows us to not require
-    /// the caller to not start a transaction for simple lookups. 
+    /// lookups for Transactional Indexes must be within a transaction, and this removes the need for
+    /// the caller to start a transaction for simple lookups (if a transaction already exists, it will
+    /// be joined).
     /// </summary>
     public interface ITransactionalLookupIndex
     {

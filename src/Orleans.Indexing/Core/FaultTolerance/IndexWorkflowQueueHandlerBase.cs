@@ -145,6 +145,7 @@ namespace Orleans.Indexing
             return __grainIndexes;
         }
 
+        // TODO clean up some of the duplicated id-generation code.
         private IIndexWorkflowQueue InitIndexWorkflowQueue()
             => __workflowQueue = _lazyParent.Value.IsGrainService
                     ? _siloIndexManager.GetGrainService<IIndexWorkflowQueue>(IndexWorkflowQueueBase.CreateIndexWorkflowQueueGrainReference(_siloIndexManager, _grainInterfaceType, _queueSeqNum, _silo))

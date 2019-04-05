@@ -206,7 +206,13 @@ namespace Orleans.Indexing.Facet
         {
             var primaryKey = workflowQ.GetPrimaryKeyString();
             var reincarnatedQ = this._grainFactory.GetGrain<IIndexWorkflowQueue>(primaryKey);
+
+            // TODO - reincarnatedQHandler is not connected to reincarnatedQ here; make sure it is the
+            // same that is instantiated by IndexWorkflowQueueBase.InitWorkflowQueueHandler.
             var reincarnatedQHandler = this._grainFactory.GetGrain<IIndexWorkflowQueueHandler>(primaryKey);
+
+            // This is called during OnActivateAsync(), so workflowQ's may be on a different silo than the
+            // current grain activation.
             await Task.WhenAll(reincarnatedQ.Initialize(workflowQ), reincarnatedQHandler.Initialize(workflowQ));
             return reincarnatedQ;
         }

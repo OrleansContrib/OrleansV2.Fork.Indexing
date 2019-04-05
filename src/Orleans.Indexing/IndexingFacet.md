@@ -1,4 +1,4 @@
-# Indexing Facet Design
+# Indexing User's Guide
 
 <!-- markdown-toc (by Jon Schlinkert) inserts the Table of Contents between the toc/tocstop comments; commandline is: markdown-toc -i <this file> -->
 <!-- markdown-toc truncates `IInterface<TProperties>` before the <TProperties>, so manually enter the anchor on the heading using the name markdown-toc generates (markdown-toc does not pick up names in anchor definitions on section headers; you must use the names it generates). Then after each TOC creation, re-add <TProperties> or <TGrainState> before the closing backtick.
@@ -99,7 +99,9 @@ The same "manually enter the anchor" requirement applies to headers with a perio
 <!-- tocstop -->
 
 ## Overview of Indexing
-Indexing enables grains to be efficiently queried by scalar properties. A research paper describing the interface and implementation can be found [here](http://cidrdb.org/cidr2017/papers/p29-bernstein-cidr17.pdf).
+Indexing enables grains to be efficiently queried by scalar properties. A research paper describing the interface and implementation can be found [here](http://cidrdb.org/cidr2017/papers/p29-bernstein-cidr17.pdf), and a PDF with additional illustrations is [here](http://cidrdb.org/cidr2017/slides/p29-bernstein-cidr17-slides.pdf).
+
+For more information about the indexing implementation, see the [Indexing Internals](IndexingInternals.md) document.
 
 Indexing is defined at two levels: at the application level as property attributes on application properties classes, and by implementation classes supplied by Orleans to either update the indexes created from these attributes, or to translate LINQ queries into the retrieval of grains keyed by these indexes.
 
@@ -118,6 +120,8 @@ The simplest approach is to store the entire index as a single grain on whatever
 SingleBucket indexes internally create a single bucket grain for the entire index; this bucket's hashtable contain an entry for each key value that has been stored for that index.
 ##### Partitioned Per Silo
 An index may be physically partitioned such that grains and their index are on the same silo. This option is available only for Active indexes, and is the only partitioning option supported for Active indexes. This allows the silo to function as the single unit of failure, since an index and the grains it references fail together, which simplifies recovery.
+
+Total indexes, on the other hand, cannot be partitioned PerSilo, because this would require moving them from silo to silo as they were activated. Thus there is a symmetry between Active indexes using PerSilo only, and Total indexes using only SingleBucket or PerKey.
 
 Indexes that are partitioned Per Silo may be thought of as SingleBucket Per Silo indexes; the implementation creates one index grain per Silo (implemented by a GrainService).
 ##### Partitioned Per Key Hash
@@ -155,13 +159,20 @@ Applications define the serializable data classes whose properties are indexed, 
     [Serializable]
     public class SportsTeamIndexedProperties : ISportsTeamIndexedProperties
     {
-        [Index(typeof(ActiveHashIndexPartitionedPerKey<string, ISportsTeamGrain>), IsEager = true, IsUnique = false)]
+        [Index(typeof(IActiveHashIndexPartitionedPerSilo<string, ISportsTeamGrain>), IsEager = true, IsUnique = false)]
         public string Name { get; set; }
         // ...
     }
 ```
 #### Property Attributes
 As shown above, an index on a property is defined by placing an attribute on it. While we support placing annotations on multiple properties in a `TProperties` class, each annotation defines a separate index; we currently do not support true compound indexes (they can be simulated by using computed properties such as QualifiedName in the sample). The name of the index is derived from the property name; e.g., the Location property will result in the creation of an index currently named "__Location", under the interface deriving from `IIndexableGrain<TProperties>`. In the sample, the Interface is ISportsTeamGrain, which implements `IIndexableGrain<SportsTeamIndexedProperties>`. Details of the indexable interface are presented below.
+
+Attributes can be specified in two ways. Above, the form `[Index(typeof(IndexInterfaceOrClassType<propertyType, interfaceType), ...)]` is used. You can also use `[ActiveIndex(ActiveIndexType, ...)]` or `[TotalIndex(TotalIndexType, ...)]`. The currently supported `[Index(...)]` types are:
+- `[Index(typeof(IActiveHashIndexPartitionedPerSilo<keyType, interfaceType>), ...)]`
+- `[Index(typeof(ITotalHashIndexSingleBucket<keyType, interfaceType>), ...)]`
+- `[Index(typeof(TotalHashIndexPartitionedPerKey<keyType, interfaceType>), ...)]`. This uses the type of a grain implementation class rather than an interface, because there is no underlying grain implementation for Per-Key indexes themselves (there is, of course, for their buckets).
+
+For indexes specified with `[ActiveIndex(ActiveIndexType, ...)]` or `[TotalIndex(TotalIndexType, ...)]`, the Indexing loading code will fill in the generic parameters according to the `GrainInterface<TProperties>` on which it finds the property annotation (this is done in `ApplicationPartsIndexableGrainLoader`).
 
 ##### Index type
 The Index attribute may be `Index` or one of the attribute classes inheriting from it; currently these are `ActiveIndex`, `TotalIndex`, or `StorageManagedIndex`.
@@ -184,10 +195,10 @@ For a single indexed interface, the `TGrainState` class can inherit from the `TP
 
     public class SportsTeamIndexedProperties : ISportsTeamIndexedProperties
     {
-        [Index(typeof(ActiveHashIndexPartitionedPerKey<string, ISportsTeamGrain>), IsEager = true, IsUnique = false)]
+        [Index(typeof(IActiveHashIndexPartitionedPerSilo<string, ISportsTeamGrain>), IsEager = true, IsUnique = false)]
         public string Name { get; set; }
 
-        [Index(typeof(ActiveHashIndexPartitionedPerKey<string, ISportsTeamGrain>), IsEager = true, IsUnique = true)]
+        [Index(typeof(IActiveHashIndexPartitionedPerSilo<string, ISportsTeamGrain>), IsEager = true, IsUnique = true)]
         public string QualifiedName { get => JoinName(this.League, this.Name); set => SplitName(value); }
 
         [ActiveIndex(ActiveIndexType.HashIndexPartitionedByKeyHash, IsEager = true, IsUnique = false)]
@@ -324,7 +335,11 @@ The presence of "#if USE_TRANSACTIONS" illustrates switching between indexing co
 In addition to the Task-based property accessors, this interface also defines a method SaveAsync to save the state of the Grain and its indexes.
 
 #### Multiple Grain Implementations Of An Indexed Grain Interface
-It is possible to implement an indexed grain interface on multiple grain classes; the [*SharedGrainInterface* Tests](#sharedgraininterface-tests) illustrate how to do this. The key point to doing this is to call `IGrainFactory.GetGrain()` with the grainClassNamePrefix set to a unique prefix of the implementing class name (if it is not unique, or if this is not done, then Orleans will throw an exception due to ambiguous class resolution). The tests illustrate passing `nameof(implementingClass)` for this parameter. Care must be taken that one implementing class name is not a substring of another implementing class name.
+It is possible to implement an indexed grain interface on multiple grain classes; the [*SharedGrainInterface* Tests](#sharedgraininterface-tests) provides a simple illustratration of how to do this. 
+
+Sharing interfaces on multiple grains allows creating a hierarchical system of indexed interfaces, though some design will be required in order to know what valid casts exist.
+
+The key point to doing this is to call `IGrainFactory.GetGrain()` with the grainClassNamePrefix set to a unique prefix of the implementing class name (if it is not unique, or if this is not done, then Orleans will throw an exception due to ambiguous class resolution). The tests illustrate passing `nameof(implementingClass)` for this parameter. Care must be taken that one implementing class name is not a substring of another implementing class name.
 
 ### Indexing Facet Specification
 The grain developer specifies which indexing consistency scheme to use via a Facet: this is done by adding an [`IIndexedState<TGrainState>`](#the-iindexedstate-interface) parameter to an indexed grain's constructor, and decorating it with an attribute that identifies the indexing consistency scheme to use for that grain. The Indexing implementation and the underlying Orleans Facet System create an appropriate subclass of IIndexedState to pass as the actual constructor argument.
@@ -720,10 +735,7 @@ For Per-Key-Hash indexes, the index may reside on a silo other than the one the 
 
 We ensure data consistency between grain and index state by using a fault-tolerant workflow or by using Transactions.
 
-For Fault-tolerant workflow indexes, we provide "eventual consistency". Fault-tolerant indexes store the IDs of in-flight workflows along with the grain's state. First, we enqueue lazy non-tentative updates to the indexes. Then we tentatively update unique indexes, to "reserve" the unique slots and ensure no duplication. If this does not return an error, then we add the workflow IDs for the lazy updates to the grain's state, persist that state, and exit the IIndexedState's PerformUpdate() method. There are a couple subtle aspects to this:
-- The IIndexedState.PerformUpdate() method is called from a method on one or more of the grain's interfaces, which should not allow Interleaving. When the internal fault-tolerant indexing infrastructure calls back to the grain to obtain the set of in-flight workflow IDs, this call goes through the non-interleaved `IIndexableGrain.GetActiveWorkflowIdsSet()` grain interface method. The Orleans messaging system will not allow the `GetActiveWorkflowIdsSet()` call to be made before the method calling `IIndexWriter.PerformUpdate()` completes. Thus, the fault-tolerant indexing system cannot retrieve the set of in-flight workflow IDs from a grain before it has correctly persisted its in-flight workflow set.
-- If there is a unique index violation, then the grain will eagerly remove the tentative updates. If the grain crashes between the time the lazy updates are enqueued and the time this removal is done, then when the fault-tolerant infrastructure tries to obtain the workflow IDs from the grain, it will not find them (because the grain state was not persisted with them), so the updates are discarded.
-- Similarly, if the tentative unique updates pass but the grain crashes before its state is persisted, or crashes or throws an exception during the storage provider's WriteStateAsync(), then again the fault-tolerant infrastructure will not find the tentative workflow IDs in the grain's list of in-flight IDs, so they will be discarded.
+For Fault-tolerant workflow indexes, we provide "eventual consistency". Fault-tolerant indexes store the IDs of in-flight workflows along with the grain's state, and are always Lazy. When the queue executes an index update, it first obtains the set of active workflow Ids from the grain (which in turn retrieves it from the `IIndexedState` implementation), and executes the update if its workflow ID is in that set.
 
 Non-fault-tolerant indexes do not provide the above guarantees. For these indexes, the write operations are essentially parallel executions of the task set {[write indexes], write grain state}, where [write indexes] depends on Eager vs. Lazy; for Eager it is [write to index hash buckets], and for Lazy it is [write to index workflow queues]. Thus, it is possible for inconsistencies to result from failures during these tasks.
 
