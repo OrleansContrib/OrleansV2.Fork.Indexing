@@ -1,21 +1,16 @@
-﻿using Orleans.Runtime;
+using Orleans.Runtime;
 using System;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 
 namespace Orleans.Indexing
 {
     public static class IndexValidator
     {
-        public static async Task Validate(Type[] grainTypes)
+        public static void Validate(Assembly assembly)
         {
-            var _ = await ApplicationPartsIndexableGrainLoader.GetIndexRegistry(null, grainTypes);
-        }
-
-        public static async Task Validate(Assembly assembly)
-        {
-            await Validate(assembly.GetConcreteGrainClasses(logger: null).ToArray());
+            var grainClassTypes = ApplicationPartsIndexableGrainLoader.GetAssemblyIndexedConcreteGrainClasses(assembly);
+            var _ = ApplicationPartsIndexableGrainLoader.GetIndexRegistry(null, grainClassTypes);
         }
     }
 }

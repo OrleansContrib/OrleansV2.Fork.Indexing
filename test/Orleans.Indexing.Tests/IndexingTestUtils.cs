@@ -71,14 +71,6 @@ namespace Orleans.Indexing.Tests
             where TIGrain : IIndexableGrain
             => runner.IndexFactory.GetActiveGrains<TIGrain, TProperties>();
 
-        internal static void ShallowCopyFrom(this object dest, object src)
-        {
-            foreach (var propInfo in src.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                propInfo.SetValue(dest, propInfo.GetValue(src, null));
-            }
-        }
-
         #region PlayerGrain
 
         internal static Tuple<IOrleansQueryable<TIGrain, TProperties>, Func<TIGrain, Task<string>>> QueryByPlayerLocation<TIGrain, TProperties>(

@@ -5,7 +5,7 @@ using System.Reflection;
 
 namespace Orleans.Runtime
 {
-    public interface IGrainTypeResolver
+    internal interface IGrainTypeResolver
     {
         bool TryGetGrainClassData(Type grainInterfaceType, out GrainClassData implementation, string grainClassNamePrefix);
         bool TryGetGrainClassData(int grainInterfaceId, out GrainClassData implementation, string grainClassNamePrefix);

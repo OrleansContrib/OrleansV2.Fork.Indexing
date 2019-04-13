@@ -100,11 +100,11 @@ namespace Orleans.Indexing
             _lazyParent = new Lazy<GrainReference>(parentFunc, true);
         }
 
-        private IIndexWorkflowQueueHandler InitWorkflowQueueHandler() 
+        private IIndexWorkflowQueueHandler InitWorkflowQueueHandler()
             => __handler = _lazyParent.Value.IsGrainService
                 ? SiloIndexManager.GetGrainService<IIndexWorkflowQueueHandler>(
                         IndexWorkflowQueueHandlerBase.CreateIndexWorkflowQueueHandlerGrainReference(SiloIndexManager, _grainInterfaceType, _queueSeqNum, _silo))
-                : SiloIndexManager.GrainFactory.GetGrain<IIndexWorkflowQueueHandler>(CreateIndexWorkflowQueuePrimaryKey(_grainInterfaceType, _queueSeqNum));
+                : SiloIndexManager.GrainFactory.GetGrain<IIndexWorkflowQueueHandler>(CreateIndexWorkflowQueuePrimaryKey(_grainInterfaceType, _queueSeqNum, isHandler: true));
 
         public Task AddAllToQueue(Immutable<List<IndexWorkflowRecord>> workflowRecords)
         {
@@ -319,12 +319,12 @@ namespace Orleans.Indexing
         public static GrainReference CreateIndexWorkflowQueueGrainReference(SiloIndexManager siloIndexManager, Type grainInterfaceType, int queueSeqNum, SiloAddress siloAddress)
             => CreateGrainServiceGrainReference(siloIndexManager, grainInterfaceType, queueSeqNum, siloAddress);
 
-        public static string CreateIndexWorkflowQueuePrimaryKey(Type grainInterfaceType, int queueSeqNum)
-            => IndexUtils.GetFullTypeName(grainInterfaceType) + "-" + queueSeqNum;
+        public static string CreateIndexWorkflowQueuePrimaryKey(Type grainInterfaceType, int queueSeqNum, bool isHandler)
+            => $"{IndexUtils.GetFullTypeName(grainInterfaceType)}-{(isHandler ? "QHB" : "QB")}-{queueSeqNum}";
 
         private static GrainReference CreateGrainServiceGrainReference(SiloIndexManager siloIndexManager, Type grainInterfaceType, int queueSeqNum, SiloAddress siloAddress)
             => siloIndexManager.MakeGrainServiceGrainReference(IndexingConstants.INDEX_WORKFLOW_QUEUE_GRAIN_SERVICE_TYPE_CODE,
-                                                               CreateIndexWorkflowQueuePrimaryKey(grainInterfaceType, queueSeqNum), siloAddress);
+                                                               CreateIndexWorkflowQueuePrimaryKey(grainInterfaceType, queueSeqNum, isHandler: false), siloAddress);
 
         public static IIndexWorkflowQueue GetIndexWorkflowQueueFromGrainHashCode(SiloIndexManager siloIndexManager, Type grainInterfaceType, int grainHashCode, SiloAddress siloAddress)
         {

@@ -16,6 +16,7 @@ namespace Orleans.Indexing
     /// <typeparam name="K">type of hash-index key</typeparam>
     /// <typeparam name="V">type of grain that is being indexed</typeparam>
     [Unordered]
+    [PerSiloIndexGrainServiceClass(typeof(ActiveHashIndexPartitionedPerSiloBucketImplGrainService))]
     public interface IActiveHashIndexPartitionedPerSilo<K, V> : IActiveHashIndexPartitionedPerSilo, IHashIndexInterface<K, V> where V : IIndexableGrain
     {
     }

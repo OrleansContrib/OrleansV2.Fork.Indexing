@@ -28,9 +28,6 @@ namespace Orleans.Indexing
         private ILogger Logger => __logger ?? (__logger = this.SiloIndexManager.LoggerFactory.CreateLoggerWithFullCategoryName<ActiveHashIndexPartitionedPerSiloImpl<K, V>>());
         private ILogger __logger;
 
-        internal static Task InitPerSilo(SiloIndexManager siloIndexManager, string indexName, bool isUnique)
-            => siloIndexManager.Silo.AddGrainService(new ActiveHashIndexPartitionedPerSiloBucketImplGrainService(siloIndexManager, indexName, GetGrainReference(siloIndexManager, indexName)));
-
         public override Task OnActivateAsync()
         {
             _status = IndexStatus.Available;
@@ -52,10 +49,7 @@ namespace Orleans.Indexing
             => throw new NotSupportedException();
 
         private static GrainReference GetGrainReference(SiloIndexManager siloIndexManager, string indexName, SiloAddress siloAddress = null)
-            => siloIndexManager.MakeGrainServiceGrainReference(IndexingConstants.HASH_INDEX_PARTITIONED_PER_SILO_BUCKET_GRAIN_SERVICE_TYPE_CODE,
-                                                               IndexUtils.GetIndexGrainPrimaryKey(typeof(V), indexName), siloAddress ?? siloIndexManager.SiloAddress);
-
-        public Task<bool> IsUnique() => Task.FromResult(false);
+            => ActiveHashIndexPartitionedPerSiloBucketImplGrainService.GetGrainReference(siloIndexManager, typeof(V), indexName, siloAddress);
 
         public async Task<V> LookupUniqueAsync(K key)
         {
@@ -76,7 +70,9 @@ namespace Orleans.Indexing
 
             // Get and Dispose() all buckets in silos
             Dictionary<SiloAddress, SiloStatus> hosts = await this.SiloIndexManager.GetSiloHosts(true);
-            await Task.WhenAll(hosts.Keys.Select(sa => this.SiloIndexManager.GetGrainService<IActiveHashIndexPartitionedPerSiloBucket>(makeGrainReference(sa)).Dispose()));
+            await Task.WhenAll(hosts.Keys.Select(siloAddress => this.SiloIndexManager
+                                                                    .GetGrainService<IActiveHashIndexPartitionedPerSiloBucket>(makeGrainReference(siloAddress))
+                                                                    .Dispose()));
         }
 
         public Task<bool> IsAvailable() => Task.FromResult(_status == IndexStatus.Available);

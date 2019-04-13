@@ -24,9 +24,6 @@ namespace Orleans.Indexing
         internal Silo Silo => __silo ?? (__silo = this.ServiceProvider.GetRequiredService<Silo>());
         private Silo __silo;
 
-        internal IGrainTypeResolver GrainTypeResolver => __grainTypeResolver ?? (__grainTypeResolver = this.Silo.GrainTypeResolver);
-        private IGrainTypeResolver __grainTypeResolver;
-
         public SiloIndexManager(IServiceProvider sp, IGrainFactory gf, IApplicationPartManager apm, ILoggerFactory lf, ITypeResolver tr)
             : base(sp, gf, apm, lf, tr)
         {
@@ -34,7 +31,7 @@ namespace Orleans.Indexing
 
         public void Participate(ISiloLifecycle lifecycle)
         {
-            lifecycle.Subscribe(this.GetType().FullName, ServiceLifecycleStage.RuntimeGrainServices, ct => base.OnStartAsync(ct), ct => base.OnStopAsync(ct));
+            lifecycle.Subscribe(this.GetType().FullName, ServiceLifecycleStage.ApplicationServices, ct => base.OnStartAsync(ct), ct => base.OnStopAsync(ct));
         }
 
         internal Task<Dictionary<SiloAddress, SiloStatus>> GetSiloHosts(bool onlyActive = false)

@@ -1,10 +1,11 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Runtime;
 using Orleans.Indexing.Facet;
+using Orleans.Services;
+using Microsoft.Extensions.Options;
 
 namespace Orleans.Indexing
 {
@@ -13,29 +14,29 @@ namespace Orleans.Indexing
         /// <summary>
         /// Configure silo to use indexing using a configure action.
         /// </summary>
-        public static ISiloHostBuilder UseIndexing(this ISiloHostBuilder builder, Action<IndexingOptions> configureOptions)
-            => UseIndexing(builder, ob => ob.Configure(configureOptions));
-
-        /// <summary>
-        /// Configure silo to use indexing using a configuration builder.
-        /// </summary>
-        public static ISiloHostBuilder UseIndexing(this ISiloHostBuilder builder, Action<OptionsBuilder<IndexingOptions>> configureAction = null)
+        public static ISiloHostBuilder UseIndexing(this ISiloHostBuilder builder, Action<IndexingOptions> configureOptions = null)
         {
+            // This is necessary to get the configured NumWorkflowQueuesPerInterface for IndexFactory.RegisterIndexWorkflowQueueGrainServices.
+            var indexingOptions = new IndexingOptions();
+            configureOptions?.Invoke(indexingOptions);
+
             return builder.AddSimpleMessageStreamProvider(IndexingConstants.INDEXING_STREAM_PROVIDER_NAME)
                 .AddMemoryGrainStorage(IndexingConstants.INDEXING_WORKFLOWQUEUE_STORAGE_PROVIDER_NAME)
                 .AddMemoryGrainStorage(IndexingConstants.INDEXING_STORAGE_PROVIDER_NAME)
                 .AddMemoryGrainStorage(IndexingConstants.MEMORY_STORAGE_PROVIDER_NAME)
-                .ConfigureServices(services => services.UseIndexing(configureAction))
                 .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(SiloBuilderExtensions).Assembly))
+                .ConfigureServices(services => services.UseIndexing(indexingOptions))
+                .ConfigureServices((context, services) => ApplicationPartsIndexableGrainLoader.RegisterGrainServices(context, services, indexingOptions))
                 .UseTransactions();
         }
 
         /// <summary>
         /// Configure silo services to use indexing using a configuration builder.
         /// </summary>
-        private static IServiceCollection UseIndexing(this IServiceCollection services, Action<OptionsBuilder<IndexingOptions>> configureAction = null)
+        private static IServiceCollection UseIndexing(this IServiceCollection services, IndexingOptions indexingOptions)
         {
-            configureAction?.Invoke(services.AddOptions<IndexingOptions>(IndexingConstants.INDEXING_OPTIONS_NAME));
+            services.AddOptions<IndexingOptions>(IndexingConstants.INDEXING_OPTIONS_NAME).Configure(options => options.ShallowCopyFrom(indexingOptions));
+
             services.AddSingleton<IndexFactory>()
                     .AddFromExisting<IIndexFactory, IndexFactory>();
             services.AddSingleton<SiloIndexManager>()
@@ -52,5 +53,8 @@ namespace Orleans.Indexing
                                   typeof(TransactionalIndexedStateAttributeMapper));
             return services;
         }
+
+        internal static void AddGrainService(this IServiceCollection services, Func<IServiceProvider, IGrainService> creationFunc)
+            => services.AddSingleton(sp => creationFunc(sp));
     }
 }

@@ -125,20 +125,25 @@ namespace Orleans.Indexing
         {
             if (_grainStorage == null)
             {
-                var implementation = TypeCodeMapper.GetImplementation(this.SiloIndexManager.GrainTypeResolver, typeof(V));
-                if (implementation == null || (_grainClassName = implementation.GrainClass) == null ||
-                        !this.SiloIndexManager.CachedTypeResolver.TryResolveType(_grainClassName, out Type grainClassType))
+                var grainClassTypes = this.SiloIndexManager.IndexRegistry.GetImplementingGrainClasses(typeof(V));
+                if (grainClassTypes.Length == 0)
                 {
-                    throw new IndexException($"The grain implementation class {implementation.GrainClass} for grain" +
-                                             " interface {IndexUtils.GetFullTypeName(typeof(V))} was not resolved.");
+                    throw new IndexException($"There is no grain implementation class for DSMI grain interface {IndexUtils.GetFullTypeName(typeof(V))}.");
                 }
+                if (grainClassTypes.Length > 1)
+                {
+                    throw new IndexException($"There must be only one grain implementation class for DSMI grain interface {IndexUtils.GetFullTypeName(typeof(V))}.");
+                }
+                var grainClassType = grainClassTypes[0];
+                this._grainClassName = IndexUtils.GetFullTypeName(grainClassType);
+
                 _grainStorage = grainClassType.GetGrainStorage(this.SiloIndexManager.ServiceProvider);
                 if (this.isTransactional)
                 {
-                    // TODO: This is also part of the TransactionalStateStorageProviderWrapper workaround; this is
-                    // the name passed to the StateStorageBridge, which ends up as GrainType in CosmosDB. Because there
-                    // is currently no way to communicate the state name, IndexingConstants.IndexedGrainStateName MUST
-                    // be the stateName passed to a TransactionalIndexAttribute facet for DMSI grains.
+                    // TODO: This is also part of the TransactionalStateStorageProviderWrapper workaround; this is the name
+                    // it passes to the StateStorageBridge, which ends up as the GrainType field in CosmosDB. Because there
+                    // is currently no way to communicate the state name between the wrapper and here, the stateName passed
+                    // to the TransactionalIndexAttribute facet for DMSI grains MUST BE IndexingConstants.IndexedGrainStateName.
                     _grainClassName = $"{RuntimeTypeNameFormatter.Format(grainClassType)}-{IndexingConstants.IndexedGrainStateName}";
                 }
             }

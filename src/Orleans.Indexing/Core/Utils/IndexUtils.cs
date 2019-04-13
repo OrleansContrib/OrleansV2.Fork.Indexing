@@ -27,7 +27,7 @@ namespace Orleans.Indexing
         /// <param name="indexName">the name of the index, which is the identifier of the index</param>
         /// <returns>index grainID</returns>
         public static string GetIndexGrainPrimaryKey(Type grainType, string indexName)
-            => string.Format("{0}-{1}", GetFullTypeName(grainType), indexName);
+            => $"{GetFullTypeName(grainType)}-{indexName}";
 
         /// <summary>
         /// This method extracts the name of an index grain from its primary key
@@ -217,6 +217,14 @@ namespace Orleans.Indexing
             }
 
             return scheme ?? throw new IndexConfigurationException($"Grain type {grainClassType.Name} has no Indexing Facet constructor argument specified");
+        }
+
+        internal static void ShallowCopyFrom(this object dest, object src)
+        {
+            foreach (var propInfo in src.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                propInfo.SetValue(dest, propInfo.GetValue(src, null));
+            }
         }
 
         internal static IGrainStorage GetGrainStorage(IServiceProvider services, string storageName)

@@ -66,9 +66,9 @@ namespace Orleans.Indexing.Tests
         /// Validates indexes without having to load them into a Silo.
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Validate_Indexes()
+        public void Test_Validate_Indexes()
         {
-            await IndexValidator.Validate(typeof(BasicFunctionalityTests).Assembly);
+            IndexValidator.Validate(typeof(BasicFunctionalityTests).Assembly);
         }
     }
 }

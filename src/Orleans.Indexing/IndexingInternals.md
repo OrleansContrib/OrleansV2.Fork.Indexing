@@ -12,7 +12,12 @@ The same "manually enter the anchor" requirement applies to headers with a perio
   * [`*IndexedState` State Management](#indexedstate-state-management)
       - [Wrapping the `TGrainState`](#wrapping-the-tgrainstate)
   * [Hash Table Implementation](#hash-table-implementation)
+    + [Partitioning Schemes](#partitioning-schemes)
+  * [IIndexInterface](#iindexinterface)
+    + [IHashIndexInterface](#ihashindexinterface)
   * [Workflow Queues](#workflow-queues)
+  * [GrainServices Created by Indexing](#grainservices-created-by-indexing)
+    + [PerSiloIndexGrainServiceClassAttribute](#persiloindexgrainserviceclassattribute)
   * [Consistency Schemes, Queues, and Eagerness](#consistency-schemes-queues-and-eagerness)
   * [Limitations On Active Indexes](#limitations-on-active-indexes)
   * [Limitations On Total Indexes](#limitations-on-total-indexes)
@@ -82,12 +87,19 @@ Currently Orleans supports only hash-based indexing, which in turn supports retr
 
 All partitions utilize the concept of a "bucket grain", in which the hash-table bucket is implemented by a grain and contains a `HashIndexBucketState`, which is essentially a Dictionary that maps a key (the property value) to one or more grains that have that property value.
 
+#### Partitioning Schemes
 The details of the partitioning schemes are:
 - SingleBucket: The entire index is in a single grain. The Dictionary of this grain is therefore the spine for the entire index; it has an entry for each value of that property on any grain. Obviously, this is the least scalable approach and, with Transactions, may timeout due to lock contention. Implemented by `HashIndexSingleBucket`. Used only for Total indexes.
 - Per Silo: Similar to SingleBucket, except that there is a single bucket on each silo. The bucket is implemented by a grain service, `ActiveHashIndexPartitionedPerSiloBucketImplGrainService`, which maintains its own `HashIndexBucketState` (it does not use `HashIndexSingleBucket`).
 - Per Key: Each value of the indexed property maps to a different bucket grain, which may be on any silo. The "spine" of the index is thus distributed across these bucket grains. Each bucket grain is an instance of `HashIndexSingleBucket`, and its `HashIndexBucketState` will contain only the keys that hash to its hash value. Usually there is only one, but there may be collisions, mostly for strings or when `IndexingOptions.MaxHashBuckets` is set low enough to cause collisions. Because Indexing uses the default integer hash code, which is just the integer, and `IndexingOptions.MaxHashBuckets` is implemented by simple modulo, some property-value generation schemes can cause high collision rates.
 
 Because of the difference in `HashIndexBucketState` storage by each of these index options, updating `HashIndexBucketState` is done by a static function `HashIndexBucketUtils.UpdateBucketState`. This does not have any concurrency control (locking) because it is only called from methods on bucket grains, and Orleans ensures that Orleans ensures that no other thread can run concurrently in a grain before we reach an await operation, when execution is yielded back to the Orleans scheduler. `HashIndexBucketUtils.UpdateBucketState` is synchronous, so no await operation is encountered until it has returned.
+
+### IIndexInterface
+This is the base interface for both index implementation classes and hash bucket implementation classes; essentially, the index implementation calls through to the bucket implementation.
+
+#### IHashIndexInterface
+This adds a single method to IIndexInterface: `LookupUniqueAsync`, which is currently unused. Currently, uniqueness is defined at the index level, and thus this method appears unnecessary. Implementing it would require adding an additional query method, perhaps `IOrleansQueryable<TIGrain, TProperties>.GetUniqueResult`, which would be implemented in `QueryIndexedGrainsNode<TIGrain, TProperties>` to call `IHashIndexInterface.LookupUniqueAsync` (and there should be a transactional form as there is for `IIndexInterface` methods).
 
 ### Workflow Queues
 Indexing implements a workflow queue system that allows an index update to be lazy; the request is enqueued and then the original operation continues (by enqueueing more updates, or by returning to the caller).
@@ -98,9 +110,24 @@ These queue implementations contain an instance of `IndexWorkflowQueueBase` whic
 
 The queue handler is similar to the queue in terms of location; it is either an `IndexWorkflowQueueHandlerGrainService` on the same silo as the `IndexWorkflowQueueGrainService`, or a `ReincarnatedIndexWorkflowQueueHandler` grain (which may or may not be on the same silo as the `ReincarnatedIndexWorkflowQueue` grain).
 
-Thus, the queue or queue handler is a grainservice or grain "wrapper" around a queue base or queue handler base, which does the actual work, and the queue's background operations are driven by the handler.
+Thus, the queue or queue handler is a GrainService or grain "wrapper" around a queue base or queue handler base, which does the actual work, and the queue's background operations are driven by the handler.
 
 The queue handler is controlled by the `IndexWorkflowQueueBase`; when items have been added to the queue, the `IndexWorkflowQueueBase` executes `Handler.HandleWorkflowsUntilPunctuation`. "Punctuation" is simply a delineation between groups of workflow records. The handler obtains a reference to the queue (the code here could be refactored to make some things clearer and reduce copied grain-id generation). Once the handler has completed the current group of records and arrives at punctuation, it calls the queue's `GiveMoreWorkflowsOrSetAsIdle` method. This in turn calls the queue base's `GiveMoreWorkflowsOrSetAsIdle`. If there are more records to be processed, they are returned; otherwise, the the queue becomes idle.
+
+### GrainServices Created by Indexing
+A GrainService is a grain that runs on a specific silo. Indexing uses these to keep updates on the same silo as the active grain whenever possible, to minimize RPCs.
+
+There are three types of GrainService used by Indexing:
+- `IndexWorkflowQueueGrainService`, as described in [Workflow Queues](#workflow-queues).
+- `IndexWorkflowQueueHandlerGrainService`, as described in [Workflow Queues](#workflow-queues).
+- `ActiveHashIndexPartitionedPerSiloBucketImplGrainService`, as described in [Partitioning Schemes](#partitioning-schemes)
+
+Orleans requires that GrainServices be registered during Configuration time; they are created during Silo construction, and there is no method to add a GrainService to a Silo once the silo has been built. Therefore, `ApplicationPartsIndexableGrainLoader` employs a two-step approach to creating indexes:
+- Register all GrainServices during registration time, via `RegisterGrainServices`. This enumerates grains in all added `ApplicationParts.OfType<AssemblyPart>`, determining which indexes create Queues and Per-Silo indexes, and creates the GrainServices for them. This step must be done during Configuration time, to add the GrainServices to the `IServiceCollection`. Thus, it cannot use information from the `IServiceProvider`; this hasn't been created yet. This requires a bit of special treatment for `IndexingOptions.NumWorkflowQueuesPerInterface`; this is required in order to create the necessary queues (and thus their GrainServices), so the Configuration action (if any) is applied directly in `SiloHostBuilder.UseIndexing` and then the populated `IndexOptions` is passed to `RegisterGrainServices`, where the `NumWorkflowQueuesPerInterface` is extracted for the queue-creation loop.
+- Create indexes. This uses the `IServiceProvider` that is created during Silo construction. Because Indexing relies on the GrainServices, the `SiloIndexManager` and `IndexManager` must run after `ServiceLifecycleStage.RuntimeGrainServices`; they run in at the next stage, in `ServiceLifecycleStage.ApplicationServices`.
+
+#### PerSiloIndexGrainServiceClassAttribute
+Classes that implement an Index that is partitioned Per-Silo are GrainServices and must expose a static `RegisterGrainService` method that is called during `ApplicationPartsIndexableGrainLoader.RegisterGrainServices`. Because only the `interfaceType` is known to `ApplicationPartsIndexableGrainLoader.RegisterGrainServices`, it must carry a `PerSiloIndexGrainServiceClassAttribute` that has one property, `GrainServiceClassType`, which is the `Type` of the class that implements the `GrainService` for that index.
 
 ### Consistency Schemes, Queues, and Eagerness
 The Transactional consistency scheme does not make use of the Workflow queues.
@@ -110,12 +137,12 @@ Non-fault-tolerant indexes may be either Lazy or Eager. If they are Eager, then 
 Fault-tolerant indexes must be Lazy, because the queues are in integral part of the fault tolerance. Fault-tolerant indexes provide "eventual consistency"; they store the IDs of in-flight workflows along with the grain's state. When the queue executes an index update, it first obtains the set of active workflow Ids from the grain (which in turn retrieves it from the `IIndexedState` implementation), and executes the update if its workflow ID is in that set.
 
 ### Limitations On Active Indexes
-Active Indexes cannot be Workflow Fault-Tolerant because upon processing deactivation, calling `GetActiveWorkflowIds` causes the grain to be spuriously reactivated. Thus a grain would never be deactivate. However, without fault tolerance, stale entries are possible:
+Active Indexes cannot be Workflow Fault-Tolerant because upon processing deactivation, calling `GetActiveWorkflowIds` causes the grain to be spuriously reactivated. Thus a grain would never be deactivated. However, without fault tolerance, stale entries are possible:
 - Assume an Active index is partitioned per key
-- Assume the hash bucket grain for one or more of the grain�s Active index entries is on different silo from the one the grain is activated on
+- Assume the hash bucket grain for one or more of the grain's Active index entries is on different silo from the one the grain is activated on
 - If the silo the grain is hosted on crashes, then we will have stale entries in all Active index hash buckets for that grain on other silos.  
 
-Active Indexes also cannot be Transactional because the updating multiple indexes on activation or deactivation would have to be done in a transactional context, and there is no such context during the activation/deactivation phases of the grain lifecycle.
+Active Indexes also cannot be Transactional because updating multiple indexes on activation or deactivation would have to be done in a transactional context, and there is no such context during the activation/deactivation phases of the grain lifecycle.
 
 These issues would only have to be solved for Per-Key or SingleBucket partitioning. For Per-Silo partitioning, the silo itself is the single unit of failure for both the grains and the indexes resident on it: If the silo goes down, so do all active grains on it as well as the active indexes on it (and thus Per-Silo partitioned indexes do not write their state to storage, because there is no need). If a grain is reactivated on another silo during normal Orleans operation, then the active index partitioned to that silo will be updated for that grain as usual.
 
@@ -296,6 +323,7 @@ Transactions allows multiple `ITransactionalState<TGrainState>` objects per grai
   - Multiple `IIndexedState.PerformRead` and `.PerformUpdate` calls would be necessary, so these would have to be made within a grain method marked `[Transaction(TransactionOption.CreateOrJoin)]`.
   - All facets on all ctors would have to have the same consistency scheme.
   - Default mapping of properties to state would be complicated; if two states have the same property name, who wins? This would likely require custom mapping.
+  - DSMI currently uses the [StorageProvider] attribute on a grain class. This would have to change to recognize the providerName from the facet specification, and would require knowing which interface's properties map to which state instance (since DSMI is interface-oriented).
 
 ### Testing
 A number of areas need to be more thoroughly tested:

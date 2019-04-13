@@ -114,7 +114,7 @@ namespace Benchmarks.Indexing
             public void Configure(ISiloHostBuilder hostBuilder)
             {
                 hostBuilder
-                    .UseIndexing(ob => ob.Configure(indexingOptions => indexingOptions.MaxHashBuckets = MaxHashBuckets))
+                    .UseIndexing(indexingOptions => indexingOptions.MaxHashBuckets = MaxHashBuckets)
                     .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(IndexingState).Assembly).WithReferences())
                     .ConfigureServices(services => services.AddSingleton<TelemetryConsumer>())
                     .Configure<TelemetryOptions>(options => options.AddConsumer<TelemetryConsumer>())

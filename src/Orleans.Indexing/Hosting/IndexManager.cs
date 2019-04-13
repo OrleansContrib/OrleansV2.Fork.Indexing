@@ -46,19 +46,20 @@ namespace Orleans.Indexing
         {
             if (!(this is SiloIndexManager))
             {
-                lifecycle.Subscribe(this.GetType().FullName, ServiceLifecycleStage.RuntimeGrainServices, ct => this.OnStartAsync(ct), ct => this.OnStopAsync(ct));
+                lifecycle.Subscribe(this.GetType().FullName, ServiceLifecycleStage.ApplicationServices, ct => this.OnStartAsync(ct), ct => this.OnStopAsync(ct));
             }
         }
 
         /// <summary>
-        /// This method is called after runtime services have been initialized; all application parts have been loaded.
+        /// This method must be called after all application parts have been loaded.
         /// </summary>
-        public virtual async Task OnStartAsync(CancellationToken ct)
+        public virtual Task OnStartAsync(CancellationToken ct)
         {
             if (this.IndexRegistry == null)
             {
-                this.IndexRegistry = await new ApplicationPartsIndexableGrainLoader(this).GetGrainClassIndexes();
+                this.IndexRegistry = new ApplicationPartsIndexableGrainLoader(this).CreateIndexRegistry();
             }
+            return Task.CompletedTask;
         }
 
         public IndexingOptions IndexingOptions { get; }

@@ -574,12 +574,6 @@ namespace Orleans.Runtime
             logger.Info($"Grain Service {service.GetType().FullName} started successfully.");
         }
 
-        public async Task AddGrainService(IGrainService service)
-        {
-            await RegisterGrainService(service);
-            await StartGrainService(service);
-        }
-
         private void ConfigureThreadPoolAndServicePointSettings()
         {
             PerformanceTuningOptions performanceTuningOptions = Services.GetRequiredService<IOptions<PerformanceTuningOptions>>().Value;
@@ -838,16 +832,11 @@ namespace Orleans.Runtime
         public T GetGrainService<T>(GrainReference grainReference) where T: IGrainService
             => this.runtimeClient.InternalGrainFactory.GetSystemTarget<T>(grainReference.GrainId, grainReference.SystemTargetSilo);
 
-        public IGrainTypeResolver GrainTypeResolver => this.runtimeClient.GrainTypeResolver;
-
         public GrainReference MakeGrainServiceGrainReference(int typeData, string systemGrainId, SiloAddress siloAddress)
             => GrainReference.FromGrainId(GrainId.GetGrainServiceGrainId(typeData, systemGrainId), this.runtimeClient.GrainReferenceRuntime, systemTargetSilo:siloAddress);
 
         public static IGrain GetGrain(IGrainFactory grainFactory, string grainPrimaryKey, Type grainInterfaceType, Type outputGrainInterfaceType)
             => ((GrainFactory)grainFactory).GetGrain(grainPrimaryKey, grainInterfaceType, outputGrainInterfaceType);
-
-        public OutputGrainInterfaceType Cast<OutputGrainInterfaceType>(IAddressable grain) where OutputGrainInterfaceType : IGrain
-            => grain.Cast<OutputGrainInterfaceType>();
 
         public IGrain Cast(IAddressable grain, Type outputGrainInterfaceType)
             => (IGrain)this.runtimeClient.InternalGrainFactory.Cast(grain, outputGrainInterfaceType);
