@@ -159,41 +159,41 @@ namespace Orleans.Indexing.Facet
             var newWorkflowQ = this.GetWorkflowQueue(grainInterfaceType);
 
             // If the same workflow queue is responsible we just check what workflow records are still in process
-            if (newWorkflowQ.Equals(oldWorkflowQ))
+            if (this.SiloIndexManager.InjectableCode.AreQueuesEqual(() => newWorkflowQ.Equals(oldWorkflowQ)))
             {
                 remainingWorkflows = await oldWorkflowQ.GetRemainingWorkflowsIn(this.ActiveWorkflowsSet);
                 if (remainingWorkflows.Value != null && remainingWorkflows.Value.Count > 0)
                 {
+                    // Add an empty enumeration to make sure the queue thread is running.
+                    await oldWorkflowQ.AddAllToQueue(new Immutable<List<IndexWorkflowRecord>>(new List<IndexWorkflowRecord>()));
                     return remainingWorkflows.Value.Select(w => w.WorkflowId);
                 }
             }
-            else //the workflow queue responsible for grainInterfaceType has changed
+            else // The workflow queue responsible for grainInterfaceType has changed
             {
                 try
                 {
-                    // We try to contact the original oldWorkflowQ to get the list of remaining workflow records
-                    // in order to pass their responsibility to newWorkflowQ.
-                    remainingWorkflows = await oldWorkflowQ.GetRemainingWorkflowsIn(this.ActiveWorkflowsSet);
+                    // Get the list of remaining workflow records from oldWorkflowQ.
+                    remainingWorkflows = await this.SiloIndexManager.InjectableCode
+                                                   .GetRemainingWorkflowsIn(() => oldWorkflowQ.GetRemainingWorkflowsIn(this.ActiveWorkflowsSet));
                 }
-                catch //the corresponding workflowQ is down, we should ask its reincarnated version
+                catch
                 {
-                    // If anything bad happened, it means that oldWorkflowQ is not reachable.
-                    // Then we get our hands to reincarnatedOldWorkflowQ to get the list of remaining workflow records.
+                    // An exception means that oldWorkflowQ is not reachable. Create a reincarnatedOldWorkflowQ grain
+                    // to read the state of the oldWorkflowQ to get the list of remaining workflow records.
                     reincarnatedOldWorkflowQ = await this.GetReincarnatedWorkflowQueue(oldWorkflowQ);
                     remainingWorkflows = await reincarnatedOldWorkflowQ.GetRemainingWorkflowsIn(this.ActiveWorkflowsSet);
                 }
 
-                // If any workflow is remaining unprocessed...
+                // If any workflow is remaining unprocessed, pass their responsibility to newWorkflowQ.
                 if (remainingWorkflows.Value != null && remainingWorkflows.Value.Count > 0)
                 {
                     // Give the responsibility of handling the remaining workflow records to the newWorkflowQ.
                     await newWorkflowQ.AddAllToQueue(remainingWorkflows);
 
-                    // Check which was the target old workflow queue that responded to our request.
+                    // Remove workflows from the target old workflow queue that responded to our request.
+                    // We don't need to await this; worst-case, they will be processed again by the old-queue.
                     var targetOldWorkflowQueue = reincarnatedOldWorkflowQ ?? oldWorkflowQ;
-
-                    // It's good that we remove the workflows from the queue, but we really don't have to wait for them.
-                    // Worst-case, it will be processed again by the old-queue.
                     targetOldWorkflowQueue.RemoveAllFromQueue(remainingWorkflows).Ignore();
                     return remainingWorkflows.Value.Select(w => w.WorkflowId);
                 }
@@ -206,9 +206,6 @@ namespace Orleans.Indexing.Facet
         {
             var primaryKey = workflowQ.GetPrimaryKeyString();
             var reincarnatedQ = this._grainFactory.GetGrain<IIndexWorkflowQueue>(primaryKey);
-
-            // TODO - reincarnatedQHandler is not connected to reincarnatedQ here; make sure it is the
-            // same that is instantiated by IndexWorkflowQueueBase.InitWorkflowQueueHandler.
             var reincarnatedQHandler = this._grainFactory.GetGrain<IIndexWorkflowQueueHandler>(primaryKey);
 
             // This is called during OnActivateAsync(), so workflowQ's may be on a different silo than the

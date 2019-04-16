@@ -52,8 +52,6 @@ namespace OrleansSiloHost
                 .ConfigureLogging(logging => logging.AddConsole())
                 .UseIndexing();
 
-            var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-
             var host = builder.Build();
             await host.StartAsync();
             return host;

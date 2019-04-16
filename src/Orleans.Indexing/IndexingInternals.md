@@ -34,6 +34,7 @@ The same "manually enter the anchor" requirement applies to headers with a perio
     + [Transactional Updates](#transactional-updates)
       - [TransactionalIndexVariant](#transactionalindexvariant)
       - [Limits of Transactional Updates](#limits-of-transactional-updates)
+    + [Testing of Internals via IInjectableCode](#testing-of-internals-via-iinjectablecode)
 - [Flow of Index Queries](#flow-of-index-queries)
   * [QueryActiveGrainsNode](#queryactivegrainsnode)
   * [OrleansQueryProvider](#orleansqueryprovider)
@@ -249,6 +250,28 @@ In addition to some Transactional Indexing tests sprinkled through the rest of t
 - `*TransactionalPlayer*`: This uses the *Player* properties definitions to test commit and rollback of index inserts and updates.
 -  The Indexing benchmarks in the Benchmarks project test how many index operations can be done per second. These benchmarks provide all 3 consistency schemes and select which one to use based on the command-line arguments.
 
+#### Testing of Internals via IInjectableCode
+Currently two tests, both for fault-tolerant correctness, use `IInjectableCode` implementations to cause the indexing infrastructure to operate different for these tests. `IInjectableCode` operates by:
+- At Silo configuration time, `IndexingRecoveryTestFixture` sets a `TestInjectableCode` configuration object with the requested behavior, for example:
+```c#
+    hostBuilder.ConfigureServices(services => services.AddSingleton<IInjectableCode>
+                                (_ => new TestInjectableCode { SkipQueueThread = true }));
+
+```
+- The `TestInjectableCode` implementation has functions that take lambdas which are the small sections of production code to exercise. It uses the value set at configuration time (here, `SkipQueueThread`) to determine whether to force test-desired behavior or simply execute the production code. For example:
+```c#
+    public bool ShouldRunQueueThread(Func<bool> pred)
+    {
+        if (this.SkipQueueThread)
+        {
+            this.SkipQueueThread = false;       // Only do this once.
+            return false;
+        }
+        return pred();
+    }
+```
+- If there is no service implementation registered for `IInjectableCode`, the `SiloIndexManager` creates an instance of `ProductionInjectableCode`. The control values (such as `SkipQueueThread`) are never set for this class, and the lambda-accepting functions merely execute the lambda. In this way, no test code can leak into production.
+
 ## Flow of Index Queries
 Querying indexed properties is done by LINQ:
 ```c#
@@ -333,7 +356,8 @@ A number of areas need to be more thoroughly tested:
     - All permutations of bad index attributes
     - Go through all the exceptions in `ApplicationPartsIndexableGrainLoader` and make sure each is tested
   - Uniqueness violations
-- Fault-tolerant recovery and continuation, and scalability
+- Fault-tolerant recovery and continuation have two tests in `Orleans.Indexing.Tests.Recovery`, but this needs much more rigorous testing.
+- Scalability. The Unit Tests use only a small number of grains. The Benchmarks are better, but this needs to be tested in real Silos with large numbers of grains.
 - Transaction tests with multiple permutations of cross-grain interfaces, to test deadlock prevention.
 - Joining external transactions, both on grain index update and on query.
 - ReincarnatedWorkflowQueue testing

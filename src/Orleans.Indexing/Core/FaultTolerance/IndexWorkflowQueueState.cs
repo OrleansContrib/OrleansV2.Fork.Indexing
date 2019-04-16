@@ -6,10 +6,11 @@ namespace Orleans.Indexing
     /// <summary>
     /// The persistent unit for storing the information for an <see cref="IndexWorkflowQueueGrainService"/>
     /// </summary>
+    /// <remarks>This requires GrainState instead of using StateStorageBridge, due to having to set the ETag for upsert.</remarks>
     [Serializable]
     internal class IndexWorkflowQueueState : GrainState<IndexWorkflowQueueEntry>
     {
-        public IndexWorkflowQueueState(SiloAddress silo) : base(new IndexWorkflowQueueEntry(silo))
+        public IndexWorkflowQueueState() : base(new IndexWorkflowQueueEntry())
         {
         }
     }
@@ -23,12 +24,6 @@ namespace Orleans.Indexing
         // Updates that must be propagated to indexes.
         internal IndexWorkflowRecordNode WorkflowRecordsHead;
 
-        internal SiloAddress Silo { get; }
-
-        public IndexWorkflowQueueEntry(SiloAddress silo)
-        {
-            this.WorkflowRecordsHead = null;
-            this.Silo = silo;
-        }
+        public IndexWorkflowQueueEntry() => this.WorkflowRecordsHead = null;
     }
 }

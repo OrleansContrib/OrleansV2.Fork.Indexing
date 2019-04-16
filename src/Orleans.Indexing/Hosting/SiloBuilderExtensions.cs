@@ -5,7 +5,6 @@ using Orleans.Hosting;
 using Orleans.Runtime;
 using Orleans.Indexing.Facet;
 using Orleans.Services;
-using Microsoft.Extensions.Options;
 
 namespace Orleans.Indexing
 {

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.ApplicationParts;
 using Orleans.Core;
+using Orleans.Indexing.TestInjection;
 using Orleans.Runtime;
 using Orleans.Services;
 using System;
@@ -24,9 +25,12 @@ namespace Orleans.Indexing
         internal Silo Silo => __silo ?? (__silo = this.ServiceProvider.GetRequiredService<Silo>());
         private Silo __silo;
 
+        internal IInjectableCode InjectableCode { get; }
+
         public SiloIndexManager(IServiceProvider sp, IGrainFactory gf, IApplicationPartManager apm, ILoggerFactory lf, ITypeResolver tr)
             : base(sp, gf, apm, lf, tr)
         {
+            this.InjectableCode = this.ServiceProvider.GetService<IInjectableCode>() ?? new ProductionInjectableCode();
         }
 
         public void Participate(ISiloLifecycle lifecycle)
