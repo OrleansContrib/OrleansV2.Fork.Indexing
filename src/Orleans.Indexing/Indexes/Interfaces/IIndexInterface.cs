@@ -23,6 +23,7 @@ namespace Orleans.Indexing
         /// <param name="siloAddress">The address of the silo where the grain resides.</param>
         /// <returns>true, if the index update was successful, otherwise false</returns>
         [AlwaysInterleave]
+        [Transaction(TransactionOption.Supported)]
         Task<bool> DirectApplyIndexUpdate(IIndexableGrain updatedGrain, Immutable<IMemberUpdate> iUpdate, bool isUnique, IndexMetaData idxMetaData, SiloAddress siloAddress = null);
 
         /// <summary>
@@ -58,7 +59,8 @@ namespace Orleans.Indexing
         /// <returns>the result of lookup into the hash-index</returns>
         [ReadOnly]
         [AlwaysInterleave]
-        Task Lookup(IOrleansQueryResultStream<IIndexableGrain> result, object key);
+        [Transaction(TransactionOption.Supported)]
+        Task LookupAsync(IOrleansQueryResultStream<IIndexableGrain> result, object key);
 
         /// <summary>
         /// This method is used for extracting the whole result of a lookup from an ActiveHashIndexPartitionedPerSiloBucket.
@@ -69,7 +71,8 @@ namespace Orleans.Indexing
         /// <returns>the result of the lookup</returns>
         [ReadOnly]
         [AlwaysInterleave]
-        Task<IOrleansQueryResult<IIndexableGrain>> Lookup(object key);
+        [Transaction(TransactionOption.Supported)]
+        Task<IOrleansQueryResult<IIndexableGrain>> LookupAsync(object key);
     }
 
     /// <summary>
@@ -86,7 +89,8 @@ namespace Orleans.Indexing
         /// <returns>the result of lookup into the hash-index</returns>
         [ReadOnly]
         [AlwaysInterleave]
-        Task Lookup(IOrleansQueryResultStream<V> result, K key);
+        [Transaction(TransactionOption.Supported)]
+        Task LookupAsync(IOrleansQueryResultStream<V> result, K key);
 
         /// <summary>
         /// This method is used for extracting the whole result of a lookup from an ActiveHashIndexPartitionedPerSiloBucket.
@@ -97,6 +101,7 @@ namespace Orleans.Indexing
         /// <returns>the result of the lookup</returns>
         [ReadOnly]
         [AlwaysInterleave]
-        Task<IOrleansQueryResult<V>> Lookup(K key);
+        [Transaction(TransactionOption.Supported)]
+        Task<IOrleansQueryResult<V>> LookupAsync(K key);
     }
 }

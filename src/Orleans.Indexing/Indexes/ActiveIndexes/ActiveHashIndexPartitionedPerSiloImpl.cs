@@ -28,9 +28,6 @@ namespace Orleans.Indexing
         private ILogger Logger => __logger ?? (__logger = this.SiloIndexManager.LoggerFactory.CreateLoggerWithFullCategoryName<ActiveHashIndexPartitionedPerSiloImpl<K, V>>());
         private ILogger __logger;
 
-        internal static Task InitPerSilo(SiloIndexManager siloIndexManager, string indexName, bool isUnique)
-            => siloIndexManager.Silo.AddGrainService(new ActiveHashIndexPartitionedPerSiloBucketImplGrainService(siloIndexManager, indexName, GetGrainReference(siloIndexManager, indexName)));
-
         public override Task OnActivateAsync()
         {
             _status = IndexStatus.Available;
@@ -52,19 +49,16 @@ namespace Orleans.Indexing
             => throw new NotSupportedException();
 
         private static GrainReference GetGrainReference(SiloIndexManager siloIndexManager, string indexName, SiloAddress siloAddress = null)
-            => siloIndexManager.MakeGrainServiceGrainReference(IndexingConstants.HASH_INDEX_PARTITIONED_PER_SILO_BUCKET_GRAIN_SERVICE_TYPE_CODE,
-                                                               IndexUtils.GetIndexGrainPrimaryKey(typeof(V), indexName), siloAddress ?? siloIndexManager.SiloAddress);
+            => ActiveHashIndexPartitionedPerSiloBucketImplGrainService.GetGrainReference(siloIndexManager, typeof(V), indexName, siloAddress);
 
-        public Task<bool> IsUnique() => Task.FromResult(false);
-
-        public async Task<V> LookupUnique(K key)
+        public async Task<V> LookupUniqueAsync(K key)
         {
             var result = new OrleansFirstQueryResultStream<V>();
             var taskCompletionSource = new TaskCompletionSource<V>();
             Task<V> tsk = taskCompletionSource.Task;
             Action<V> responseHandler = taskCompletionSource.SetResult;
             await result.SubscribeAsync(new QueryFirstResultStreamObserver<V>(responseHandler));
-            await Lookup(result, key);
+            await LookupAsync(result, key);
             return await tsk;
         }
 
@@ -76,12 +70,14 @@ namespace Orleans.Indexing
 
             // Get and Dispose() all buckets in silos
             Dictionary<SiloAddress, SiloStatus> hosts = await this.SiloIndexManager.GetSiloHosts(true);
-            await Task.WhenAll(hosts.Keys.Select(sa => this.SiloIndexManager.GetGrainService<IActiveHashIndexPartitionedPerSiloBucket>(makeGrainReference(sa)).Dispose()));
+            await Task.WhenAll(hosts.Keys.Select(siloAddress => this.SiloIndexManager
+                                                                    .GetGrainService<IActiveHashIndexPartitionedPerSiloBucket>(makeGrainReference(siloAddress))
+                                                                    .Dispose()));
         }
 
         public Task<bool> IsAvailable() => Task.FromResult(_status == IndexStatus.Available);
 
-        async Task<IOrleansQueryResult<IIndexableGrain>> IIndexInterface.Lookup(object key)
+        async Task<IOrleansQueryResult<IIndexableGrain>> IIndexInterface.LookupAsync(object key)
         {
             Logger.Trace($"Eager index lookup called for key = {key}");
 
@@ -91,7 +87,7 @@ namespace Orleans.Indexing
             return new OrleansQueryResult<V>(queriesToSilos.SelectMany(res => res.Select(e => e.AsReference<V>())).ToList());
         }
 
-        public async Task<IOrleansQueryResult<V>> Lookup(K key) => (IOrleansQueryResult<V>)await ((IIndexInterface)this).Lookup(key);
+        public async Task<IOrleansQueryResult<V>> LookupAsync(K key) => (IOrleansQueryResult<V>)await ((IIndexInterface)this).LookupAsync(key);
 
         private ISet<Task<IOrleansQueryResult<IIndexableGrain>>> GetResultQueries(Dictionary<SiloAddress, SiloStatus> hosts, object key)
         {
@@ -104,17 +100,17 @@ namespace Orleans.Indexing
                 //query each silo
                 queriesToSilos.Add(this.SiloIndexManager.GetGrainService<IActiveHashIndexPartitionedPerSiloBucket>(
                     GetGrainReference(this.SiloIndexManager, indexName, siloAddress
-                )).Lookup(/*result, */key)); //TODO: a bug in OrleansStream currently prevents a GrainService from working with streams.
+                )).LookupAsync(/*result, */key)); //TODO: a bug in OrleansStream currently prevents a GrainService from working with streams.
                 ++i;
             }
 
             return queriesToSilos;
         }
 
-        public Task Lookup(IOrleansQueryResultStream<V> result, K key)
-            => ((IIndexInterface)this).Lookup(result.Cast<IIndexableGrain>(), key);
+        public Task LookupAsync(IOrleansQueryResultStream<V> result, K key)
+            => ((IIndexInterface)this).LookupAsync(result.Cast<IIndexableGrain>(), key);
 
-        async Task IIndexInterface.Lookup(IOrleansQueryResultStream<IIndexableGrain> result, object key)
+        async Task IIndexInterface.LookupAsync(IOrleansQueryResultStream<IIndexableGrain> result, object key)
         {
             Logger.Trace($"Streamed index lookup called for key = {key}");
 

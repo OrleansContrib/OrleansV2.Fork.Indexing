@@ -9,26 +9,26 @@ namespace SportsTeamIndexing.Interfaces
         /// <summary>
         /// Using the base IndexAttribute, with the index key type and interface type fully specified
         /// </summary>
-        [Index(typeof(ActiveHashIndexPartitionedPerKey<string, ISportsTeamGrain>), IsEager = true, IsUnique = false)]
+        [Index(typeof(TotalHashIndexPartitionedPerKey<string, ISportsTeamGrain>), IsEager = true, IsUnique = false)]
         public string Name { get; set; }
 
         /// <summary>
         /// QualifiedName is an indexed computed property
         /// </summary>
-        [Index(typeof(ActiveHashIndexPartitionedPerKey<string, ISportsTeamGrain>), IsEager = true, IsUnique = true)]
+        [Index(typeof(TotalHashIndexPartitionedPerKey<string, ISportsTeamGrain>), IsEager = true, IsUnique = true)]
         public string QualifiedName { get => JoinName(this.League, this.Name); set => SplitName(value); }
 
         /// <summary>
         /// Using the ActiveIndexAttribute, with the key type and interface type left unspecified (they will be
         /// resolved by Indexing during assembly load).
         /// </summary>
-        [ActiveIndex(ActiveIndexType.HashIndexPartitionedByKeyHash, IsEager = true, IsUnique = false)]
+        [TotalIndex(TotalIndexType.HashIndexPartitionedPerKeyHash, IsEager = true, IsUnique = false)]
         public string Location { get; set; }
 
         /// <summary>
         /// The League index specification uses the default of non-unique.
         /// </summary>
-        [ActiveIndex(ActiveIndexType.HashIndexPartitionedByKeyHash, IsEager = true)]
+        [TotalIndex(TotalIndexType.HashIndexPartitionedPerKeyHash, IsEager = true)]
         public string League { get; set; }
 
         #region utilities for computed property QualifiedName

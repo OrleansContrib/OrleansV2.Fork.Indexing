@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Orleans.Hosting;
 using Orleans.Runtime;
 using Orleans.TestingHost;
+using Orleans.Transactions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,10 +24,14 @@ namespace Orleans.Indexing.Tests
 
         internal static ISiloHostBuilder Configure(ISiloHostBuilder hostBuilder, string databaseName = null)
         {
-            if (!TestDefaultConfiguration.GetValue("CosmosDBEndpoint", out string cosmosDBEndpoint)
-                || !TestDefaultConfiguration.GetValue("CosmosDBKey", out string cosmosDBKey))
+            string cosmosDBEndpoint = string.Empty, cosmosDBKey = string.Empty;
+            if (databaseName != null)
             {
-                throw new IndexConfigurationException("CosmosDB connection values are not specified");
+                if (!TestDefaultConfiguration.GetValue("CosmosDBEndpoint", out cosmosDBEndpoint)
+                    || !TestDefaultConfiguration.GetValue("CosmosDBKey", out cosmosDBKey))
+                {
+                    throw new IndexConfigurationException("CosmosDB connection values are not specified");
+                }
             }
 
             hostBuilder.AddMemoryGrainStorage(IndexingTestConstants.GrainStore)
@@ -38,11 +43,10 @@ namespace Orleans.Indexing.Tests
                        })
                        .ConfigureApplicationParts(parts =>
                        {
-                           parts.AddApplicationPart(typeof(BaseIndexingFixture).Assembly);
-                           parts.AddApplicationPart(typeof(ISimpleGrain).Assembly);
-                           parts.AddApplicationPart(typeof(SimpleGrain).Assembly);
+                           parts.AddApplicationPart(typeof(BaseIndexingFixture).Assembly).WithReferences();
+                           parts.AddApplicationPart(typeof(ISimpleGrain).Assembly).WithReferences();
+                           parts.AddApplicationPart(typeof(SimpleGrain).Assembly).WithReferences();
                        });
-
             return databaseName != null
                 ? hostBuilder.AddCosmosDBGrainStorage(IndexingTestConstants.CosmosDBGrainStorage, opt =>
                     {
@@ -95,9 +99,11 @@ namespace Orleans.Indexing.Tests
             foreach (var (grainInterfaceType, propertiesClassType) in ApplicationPartsIndexableGrainLoader.EnumerateIndexedInterfacesForAGrainClassType(grainClassType)
                                                                         .Where(tup => !interfacesToIndexedPropertyNames.ContainsKey(tup.interfaceType)))
             {
+                // TODO: See comments in DSMIGrain.LookupGrainReferences; get the path with and without the transactional storage wrapper prefix.
                 interfacesToIndexedPropertyNames[grainInterfaceType] = propertiesClassType.GetProperties()
                                                                         .Where(propInfo => propInfo.GetCustomAttributes<StorageManagedIndexAttribute>(inherit: false).Any())
                                                                         .Select(propInfo => IndexingConstants.UserStatePrefix + propInfo.Name)
+                                                                        .SelectMany(path => new[] {path, $"{nameof(TransactionalStateRecord<object>.CommittedState)}.{path}"})
                                                                         .ToArray();
             }
         }

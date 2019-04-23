@@ -4,6 +4,8 @@ using System.Reflection;
 using Orleans.Streams;
 using System.Threading.Tasks;
 using System.Linq.Expressions;
+using Orleans.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Orleans.Indexing
 {
@@ -126,38 +128,16 @@ namespace Orleans.Indexing
         /// <param name="indexedProperty">the PropertyInfo object for the indexed field.
         /// This object helps in creating a default instance of IndexUpdateGenerator.</param>
         /// <returns>An <see cref="IndexInfo"/> for the specified idxType and indexName.</returns>
-        internal async Task<IndexInfo> CreateIndex(Type idxType, string indexName, bool isUniqueIndex, bool isEager, int maxEntriesPerBucket, PropertyInfo indexedProperty)
+        internal IndexInfo CreateIndex(Type idxType, string indexName, bool isUniqueIndex, bool isEager, int maxEntriesPerBucket, PropertyInfo indexedProperty)
         {
-            Type iIndexGenericType, grainInterfaceType;
-            ValidateIndexType(idxType, indexedProperty, out iIndexGenericType, out grainInterfaceType);
+            ValidateIndexType(idxType, indexedProperty, out var iIndexGenericType, out var grainInterfaceType);
 
-            IIndexInterface index;
-            if (typeof(IGrain).IsAssignableFrom(idxType))
-            {
-                // This must call the static Silo methods because we may not be InSilo.
-                index = (IIndexInterface)Silo.GetGrain(this.grainFactory, IndexUtils.GetIndexGrainPrimaryKey(grainInterfaceType, indexName), idxType, idxType);
-
-                if (this.IsInSilo)
-                {
-                    var idxImplType = this.indexManager.CachedTypeResolver.ResolveType(
-                                            TypeCodeMapper.GetImplementation(this.siloIndexManager.GrainTypeResolver, idxType).GrainClass);
-                    if (idxImplType.IsGenericTypeDefinition)
-                        idxImplType = idxImplType.MakeGenericType(iIndexGenericType.GetGenericArguments());
-
-                    var initPerSiloMethodInfo = idxImplType.GetMethod("InitPerSilo", BindingFlags.Static | BindingFlags.NonPublic);
-                    if (initPerSiloMethodInfo != null)  // Static method so cannot use an interface
-                    {
-                        var initPerSiloMethod = (Func<SiloIndexManager, string, bool, Task>)Delegate.CreateDelegate(typeof(Func<SiloIndexManager, string, bool, Task>), initPerSiloMethodInfo);
-                        await initPerSiloMethod(this.siloIndexManager, indexName, isUniqueIndex);
-                    }
-                }
-            }
-            else
-            {
-                index = idxType.IsClass
+            // This must call the static Silo(IndexManager) methods because we may not be in the silo.
+            var index = typeof(IGrain).IsAssignableFrom(idxType)
+                ? (IIndexInterface)this.grainFactory.GetGrain(IndexUtils.GetIndexGrainPrimaryKey(grainInterfaceType, indexName), idxType)
+                : idxType.IsClass
                     ? (IIndexInterface)Activator.CreateInstance(idxType, this.indexManager.ServiceProvider, indexName, isUniqueIndex)
                     : throw new IndexException(string.Format("{0} is neither a grain nor a class. Index \"{1}\" cannot be created.", idxType, indexName));
-            }
 
             return new IndexInfo(index, new IndexMetaData(idxType, indexName, isUniqueIndex, isEager, maxEntriesPerBucket), CreateIndexUpdateGenFromProperty(indexedProperty));
         }
@@ -177,12 +157,13 @@ namespace Orleans.Indexing
             }
         }
 
-        internal static async Task RegisterIndexWorkflowQueues(SiloIndexManager sim, Type grainInterfaceType, Type grainClassType, bool isFaultTolerant)
+        internal static void RegisterIndexWorkflowQueueGrainServices(IServiceCollection services, Type grainInterfaceType, IndexingOptions indexingOptions, bool isFaultTolerant)
         {
-            for (int i = 0; i < sim.NumWorkflowQueuesPerInterface; ++i)
+            for (int i = 0; i < indexingOptions.NumWorkflowQueuesPerInterface; ++i)
             {
-                await sim.Silo.AddGrainService(new IndexWorkflowQueueGrainService(sim, grainInterfaceType, i, isFaultTolerant));
-                await sim.Silo.AddGrainService(new IndexWorkflowQueueHandlerGrainService(sim, grainInterfaceType, i, isFaultTolerant));
+                var seq = i;    // Captured by the lambda
+                services.AddGrainService(sp => new IndexWorkflowQueueGrainService(sp.GetRequiredService<SiloIndexManager>(), grainInterfaceType, seq, isFaultTolerant));
+                services.AddGrainService(sp => new IndexWorkflowQueueHandlerGrainService(sp.GetRequiredService<SiloIndexManager>(), grainInterfaceType, seq, isFaultTolerant));
             }
         }
 

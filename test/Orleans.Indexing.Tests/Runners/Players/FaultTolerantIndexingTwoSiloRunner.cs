@@ -15,25 +15,24 @@ namespace Orleans.Indexing.Tests
         {
         }
 
-#if ALLOW_FT_ACTIVE
         /// <summary>
         /// Tests basic functionality of HashIndexSingleBucket
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup1()
+        public async Task Test_Lookup_3Grains_FT_TI_LZ_SB()
         {
-            IPlayer1Grain p1 = base.GetGrain<IPlayer1Grain>(1);
+            IPlayer_FT_TI_LZ_SB p1 = base.GetGrain<IPlayer_FT_TI_LZ_SB>(1);
             await p1.SetLocation(ITC.Seattle);
 
-            IPlayer1Grain p2 = base.GetGrain<IPlayer1Grain>(2);
-            IPlayer1Grain p3 = base.GetGrain<IPlayer1Grain>(3);
+            IPlayer_FT_TI_LZ_SB p2 = base.GetGrain<IPlayer_FT_TI_LZ_SB>(2);
+            IPlayer_FT_TI_LZ_SB p3 = base.GetGrain<IPlayer_FT_TI_LZ_SB>(3);
 
             await p2.SetLocation(ITC.Seattle);
             await p3.SetLocation(ITC.SanFrancisco);
 
-            var locIdx = await base.GetAndWaitForIndex<string, IPlayer1Grain>(ITC.LocationProperty);
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer_FT_TI_LZ_SB>(ITC.LocationProperty);
 
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer1Grain, Player1Properties>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer_FT_TI_LZ_SB, PlayerProperties_FT_TI_LZ_SB>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
 
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
 
@@ -42,79 +41,8 @@ namespace Orleans.Indexing.Tests
 
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
 
-            p2 = base.GetGrain<IPlayer1Grain>(2);
+            p2 = base.GetGrain<IPlayer_FT_TI_LZ_SB>(2);
             Assert.Equal(ITC.Seattle, await p2.GetLocation());
-            Assert.Equal(2, await getLocationCount(ITC.Seattle));
-        }
-
-        /// <summary>
-        /// Tests basic functionality of ActiveHashIndexPartitionedPerSiloImpl with 1 Silo
-        /// </summary>
-        [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup2()
-        {
-            IPlayer2Grain p1 = base.GetGrain<IPlayer2Grain>(1);
-            await p1.SetLocation(ITC.Tehran);
-
-            IPlayer2Grain p2 = base.GetGrain<IPlayer2Grain>(2);
-            IPlayer2Grain p3 = base.GetGrain<IPlayer2Grain>(3);
-
-            await p2.SetLocation(ITC.Tehran);
-            await p3.SetLocation(ITC.Yazd);
-
-            var locIdx = await base.GetAndWaitForIndex<string, IPlayer2Grain>(ITC.LocationProperty);
-
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer2Grain, Player2Properties>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
-
-            base.Output.WriteLine("Before check 1");
-            Assert.Equal(2, await getLocationCount(ITC.Tehran));
-
-            await p2.Deactivate();
-
-            await Task.Delay(ITC.DelayUntilIndexesAreUpdatedLazily);
-
-            base.Output.WriteLine("Before check 2");
-            Assert.Equal(1, await getLocationCount(ITC.Tehran));
-
-            p2 = base.GetGrain<IPlayer2Grain>(2);
-            base.Output.WriteLine("Before check 3");
-            Assert.Equal(ITC.Tehran, await p2.GetLocation());
-
-            base.Output.WriteLine("Before check 4");
-            Assert.Equal(2, await getLocationCount(ITC.Tehran));
-            base.Output.WriteLine("Done.");
-        }
-#endif // ALLOW_FT_ACTIVE
-
-        /// <summary>
-        /// Tests basic functionality of HashIndexPartitionedPerKey
-        /// </summary>
-        [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup4()
-        {
-            IPlayer3Grain p1 = base.GetGrain<IPlayer3Grain>(1);
-            await p1.SetLocation(ITC.Seattle);
-
-            IPlayer3Grain p2 = base.GetGrain<IPlayer3Grain>(2);
-            IPlayer3Grain p3 = base.GetGrain<IPlayer3Grain>(3);
-
-            await p2.SetLocation(ITC.Seattle);
-            await p3.SetLocation(ITC.SanFrancisco);
-
-            var locIdx = await base.GetAndWaitForIndex<string, IPlayer3Grain>(ITC.LocationProperty);
-
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer3Grain, Player3Properties>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
-
-            Assert.Equal(2, await getLocationCount(ITC.Seattle));
-
-            await p2.Deactivate();
-            await Task.Delay(ITC.DelayUntilIndexesAreUpdatedLazily);
-
-            Assert.Equal(2, await getLocationCount(ITC.Seattle));
-
-            p2 = base.GetGrain<IPlayer3Grain>(2);
-            Assert.Equal(ITC.Seattle, await p2.GetLocation());
-
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
         }
 
@@ -122,17 +50,79 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of HashIndexPartitionedPerKey
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup5()
+        public async Task Test_Lookup_3Grains_FT_TI_LZ_PK()
+        {
+            IPlayer_FT_TI_LZ_PK p1 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(1);
+            await p1.SetLocation(ITC.Seattle);
+
+            IPlayer_FT_TI_LZ_PK p2 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(2);
+            IPlayer_FT_TI_LZ_PK p3 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(3);
+
+            await p2.SetLocation(ITC.Seattle);
+            await p3.SetLocation(ITC.SanFrancisco);
+
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer_FT_TI_LZ_PK>(ITC.LocationProperty);
+
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer_FT_TI_LZ_PK, PlayerProperties_FT_TI_LZ_PK>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
+
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+
+            await p2.Deactivate();
+            await Task.Delay(ITC.DelayUntilIndexesAreUpdatedLazily);
+
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+
+            p2 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(2);
+            Assert.Equal(ITC.Seattle, await p2.GetLocation());
+
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+        }
+
+        /// <summary>
+        /// Tests basic transactional functionality of HashIndexPartitionedPerKey
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing"), TestCategory("TransactionalIndexing")]
+        public async Task Test_Lookup_3Grains_TXN_TI_EG_PK()
+        {
+            var p1 = base.GetGrain<IPlayer_TXN_TI_EG_PK>(1);
+            await p1.SetLocation(ITC.Seattle);
+
+            var p2 = base.GetGrain<IPlayer_TXN_TI_EG_PK>(2);
+            var p3 = base.GetGrain<IPlayer_TXN_TI_EG_PK>(3);
+
+            await p2.SetLocation(ITC.Seattle);
+            await p3.SetLocation(ITC.SanFrancisco);
+
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer_TXN_TI_EG_PK>(ITC.LocationProperty);
+
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCountTxn<IPlayer_TXN_TI_EG_PK, PlayerProperties_TXN_TI_EG_PK>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
+
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+
+            await p2.Deactivate();
+            await Task.Delay(ITC.DelayUntilIndexesAreUpdatedLazily);
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));   // Transactional indexes are always Total, so the count remains 2
+
+            p2 = base.GetGrain<IPlayer_TXN_TI_EG_PK>(2);
+            Assert.Equal(ITC.Seattle, await p2.GetLocation());
+            Assert.Equal(2, await getLocationCount(ITC.Seattle));
+        }
+
+        /// <summary>
+        /// Tests basic functionality of HashIndexPartitionedPerKey
+        /// </summary>
+        [Fact, TestCategory("BVT"), TestCategory("Indexing")]
+        public async Task Test_Lookup_5Grains_FT_TI_LZ_PK()
         {
             //await base.StartAndWaitForSecondSilo();
 
-            IPlayer3Grain p1 = base.GetGrain<IPlayer3Grain>(1);
+            IPlayer_FT_TI_LZ_PK p1 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(1);
             await p1.SetLocation(ITC.Seattle);
 
-            IPlayer3Grain p2 = base.GetGrain<IPlayer3Grain>(2);
-            IPlayer3Grain p3 = base.GetGrain<IPlayer3Grain>(3);
-            IPlayer3Grain p4 = base.GetGrain<IPlayer3Grain>(4);
-            IPlayer3Grain p5 = base.GetGrain<IPlayer3Grain>(5);
+            IPlayer_FT_TI_LZ_PK p2 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(2);
+            IPlayer_FT_TI_LZ_PK p3 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(3);
+            IPlayer_FT_TI_LZ_PK p4 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(4);
+            IPlayer_FT_TI_LZ_PK p5 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(5);
 
             await p2.SetLocation(ITC.Seattle);
             await p3.SetLocation(ITC.SanFrancisco);
@@ -142,9 +132,10 @@ namespace Orleans.Indexing.Tests
             for (int i = 0; i < 100; ++i)
             {
                 var tasks = new List<Task>();
-                for (int j = 0; j < 10; ++j)
+                const int offset = 10000;   // Make unique to avoid conflict with other tests using this grain interface
+                for (int j = offset; j < offset + 10; ++j)
                 {
-                    p1 = base.GetGrain<IPlayer3Grain>(j);
+                    p1 = base.GetGrain<IPlayer_FT_TI_LZ_PK>(j);
                     tasks.Add(p1.SetLocation(ITC.Yazd + i + "-" + j));
                 }
                 await Task.WhenAll(tasks);

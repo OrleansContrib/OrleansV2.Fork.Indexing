@@ -15,15 +15,18 @@ namespace Orleans.Indexing
         /// <summary>
         /// The actual storage of the indexed values
         /// </summary>
-        public Dictionary<K, HashIndexSingleBucketEntry<V>> IndexMap { set; get; }
+        public Dictionary<K, HashIndexSingleBucketEntry<V>> IndexMap { get; set; }
 
         /// <summary>
         /// Contains the status of the index regarding its population process, which can be either
         /// UnderConstruction or Available. Available means that the index has already been populated.
         /// </summary>
-        public IndexStatus IndexStatus { set; get; }
+        public IndexStatus IndexStatus { get; set; }
 
-        public GrainReference NextBucket;
+        /// <summary>
+        /// Chains from one bucket to the next.
+        /// </summary>
+        public GrainReference NextBucket { get; set; }
     }
 
     /// <summary>

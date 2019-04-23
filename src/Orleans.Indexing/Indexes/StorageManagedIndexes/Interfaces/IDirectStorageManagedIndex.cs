@@ -16,7 +16,15 @@ namespace Orleans.Indexing
     /// <typeparam name="K">type of hash-index key</typeparam>
     /// <typeparam name="V">type of grain that is being indexed</typeparam>
     [Unordered]
-    public interface IDirectStorageManagedIndex<K, V> : IDirectStorageManagedIndex, IHashIndexInterface<K, V> where V : IIndexableGrain
+    [TransactionalIndexVariant(typeof(IDirectStorageManagedIndexTransactional<,>))]
+    public interface IDirectStorageManagedIndex<K, V> : IDirectStorageManagedIndex, IHashIndexInterface<K, V>
+                                                        where V : IIndexableGrain
+    {
+    }
+
+    [Unordered]
+    public interface IDirectStorageManagedIndexTransactional<K, V> : IDirectStorageManagedIndex, IHashIndexInterface<K, V>,
+                                                                     ITransactionalLookupIndex<K, V> where V : IIndexableGrain
     {
     }
 }

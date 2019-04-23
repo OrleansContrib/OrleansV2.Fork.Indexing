@@ -1,9 +1,7 @@
 using System;
 using System.Threading.Tasks;
-
 using Orleans;
 using Orleans.Concurrency;
-using Orleans.Providers;
 using Orleans.Indexing.Facet;
 using Orleans.Indexing;
 
@@ -11,54 +9,50 @@ using SportsTeamIndexing.Interfaces;
 
 namespace SportsTeamIndexing.Grains
 {
-    [StorageProvider(ProviderName = SportsTeamGrain.GrainStoreName)]
     public class SportsTeamGrain : Grain, ISportsTeamGrain, IIndexableGrain<SportsTeamIndexedProperties>
     {
         // This must be configured when setting up the Silo; see SiloHost.cs StartSilo().
         public const string GrainStoreName = "SportsTeamGrainMemoryStore";
 
-        IIndexedState<SportsTeamState> indexedState;
-
-        SportsTeamState TeamState => indexedState.State;
+        private readonly IIndexedState<SportsTeamState> indexedState;
 
         public SportsTeamGrain(
-            [NonFaultTolerantWorkflowIndexedState(GrainStoreName)]
+#if USE_TRANSACTIONS
+            [TransactionalIndexedState("stateName", GrainStoreName)]
+#else
+            [NonFaultTolerantWorkflowIndexedState("stateName", GrainStoreName)]
+#endif
             IIndexedState<SportsTeamState> indexedState) => this.indexedState = indexedState;
 
-        public Task<string> GetName() => Task.FromResult(this.TeamState.Name);
-        public Task SetName(string name) => this.SetProperty(() => this.TeamState.Name = name);
+        #region indexed as a computed property
+        public Task<string> GetQualifiedName() => this.indexedState.PerformRead(state => state.QualifiedName);
+        #endregion indexed as a computed property
 
-        public Task<string> GetQualifiedName() => Task.FromResult(this.TeamState.QualifiedName);
-        public Task SetQualifiedName(string name) => this.SetProperty(() => this.TeamState.QualifiedName = name);
+        #region indexed as single properties
+        public Task<string> GetName() => this.indexedState.PerformRead(state => state.Name);
+        public Task SetName(string value) => this.indexedState.PerformUpdate(state => state.Name = value);
 
-        public Task<string> GetLocation() => Task.FromResult(this.TeamState.Location);
-        public Task SetLocation(string location) => this.SetProperty(() => this.TeamState.Location = location);
+        public Task<string> GetLocation() => this.indexedState.PerformRead(state => state.Location);
+        public Task SetLocation(string value) => this.indexedState.PerformUpdate(state => state.Location = value);
 
-        public Task<string> GetLeague() => Task.FromResult(this.TeamState.League);
-        public Task SetLeague(string role) => this.SetProperty(() => this.TeamState.League = role);
+        public Task<string> GetLeague() => this.indexedState.PerformRead(state => state.League);
+        public Task SetLeague(string value) => this.indexedState.PerformUpdate(state => state.League = value);
+        #endregion indexed as single properties
 
-        public Task<string> GetVenue() => Task.FromResult(this.TeamState.Venue);
-        public Task SetVenue(string venue) => this.SetProperty(() => this.TeamState.Venue = venue);
+        #region not indexed
+        public Task<string> GetVenue() => this.indexedState.PerformRead(state => state.Venue);
+        public Task SetVenue(string value) => this.indexedState.PerformUpdate(state => state.Venue = value);
+        #endregion not indexed
 
-        public async Task SaveAsync()
-        {
-            Console.WriteLine($"Grain {await this.GetQualifiedName()} SaveAsync");
-            await this.indexedState.WriteAsync();
-        }
+        public Task<SportsTeamState> ReadStateAsync() => this.indexedState.PerformRead(state => state);
 
-        private Task SetProperty(Action action)
-        {
-            action();
-            return Task.CompletedTask;
-        }
-
-        #region Facet methods - required overrides of Grain<TGrainState>
-        public override Task OnActivateAsync() => this.indexedState.OnActivateAsync(this, () => Task.CompletedTask);
-        public override Task OnDeactivateAsync() => this.indexedState.OnDeactivateAsync(() => Task.CompletedTask);
-        #endregion Facet methods - required overrides of Grain<TGrainState>
-
-        // TODO remove when facetization is complete; for now it just makes the compiler happy
-        public Task<object> ExtractIndexImage(IIndexUpdateGenerator iUpdateGen) => throw new NotImplementedException();
+        public Task WriteStateAsync(SportsTeamState value) => this.indexedState.PerformUpdate(state =>
+                                                                {
+                                                                    if (value.Name != null) state.Name = value.Name;
+                                                                    if (value.Name != null) state.Location = value.Location;
+                                                                    if (value.Name != null) state.League = value.League;
+                                                                    if (value.Name != null) state.Venue = value.Venue;
+                                                                });
 
         #region required implementations of IIndexableGrain methods; they are only called for FaultTolerant index writing
         public Task<Immutable<System.Collections.Generic.HashSet<Guid>>> GetActiveWorkflowIdsSet() => this.indexedState.GetActiveWorkflowIdsSet();

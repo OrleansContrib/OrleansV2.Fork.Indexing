@@ -1,8 +1,8 @@
 // Naming convention used when creating sub-interfaces and classes:
 //  Prefix is:
 //      I - for interface
-//      FT or NFT - Fault Tolerant or Non FT for class impl
-//      IFT or INFT - Fault Tolerant or Non FT for class interface
+//      FT or NFT or TXN - Fault Tolerant or Non FT or Transactional for class impl
+//      IFT or INFT or ITXN - Fault Tolerant or Non FT or Transactional for grain interface
 //  UI, US, NI, NS  - property abbrev (specific to Multi-Index tests)
 //  AI, TI, XI, DSMI - Active, Total, Mixed AI and TI, or DirectStorageManaged
 //  EG, LZ - eager or lazy

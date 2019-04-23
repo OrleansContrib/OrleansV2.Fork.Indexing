@@ -6,11 +6,11 @@ namespace Orleans.Indexing.Facet
 {
     abstract class IndexedStateAttributeMapperBase
     {
-        public Factory<IGrainActivationContext, object> GetFactory(MethodInfo creator, ParameterInfo parameter, IIndexedStateConfiguration config)
+        public Factory<IGrainActivationContext, object> GetFactory(MethodInfo creator, ParameterInfo parameter, IIndexedStateConfiguration indexingConfig)
         {
             // Use generic type args to specialize the generic method and create the factory lambda.
             var genericCreate = creator.MakeGenericMethod(parameter.ParameterType.GetGenericArguments());
-            var args = new object[] { config };
+            var args = new object[] { indexingConfig };
             return context => this.Create(context, genericCreate, args);
         }
 

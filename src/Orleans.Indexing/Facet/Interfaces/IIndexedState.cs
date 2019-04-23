@@ -12,42 +12,17 @@ namespace Orleans.Indexing.Facet
     public interface IIndexedState<TGrainState> where TGrainState : new()
     {
         /// <summary>
-        /// The persistent state of the grain; includes values for indexed and non-indexed properties.
+        /// Reads the grain state, which resets the value of all indexed and non-indexed properties.
         /// </summary>
-        TGrainState State { get; }
+        Task<TResult> PerformRead<TResult>(Func<TGrainState, TResult> readFunction);
 
         /// <summary>
-        /// The <see cref="Grain.OnActivateAsync()"/> implementation must call this; in turn, this calls
-        /// <paramref name="onGrainActivateFunc"/>, in which the grain implementation does any additional activation logic needed.
+        /// Executes <paramref name="updateFunction"/> then writes the grain state and the index entries for all indexed interfaces
+        /// defined on the grain.
         /// </summary>
-        /// <param name="grain">The grain to manage indexes for</param>
-        /// <param name="onGrainActivateFunc">If <paramref name="grain"/> implements custom activation logic, it supplies
-        ///     a lambda to do so here, or may simply pass "() => Task.CompletedTask". It is called in parallel with
-        ///     inserting grain indexes into the silo index collections and later during <see cref="WriteAsync()"/>.</param>
-        Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc);
+        Task<TResult> PerformUpdate<TResult>(Func<TGrainState, TResult> updateFunction);
 
-        /// <summary>
-        /// The <see cref="Grain.OnDeactivateAsync()"/> implementation must call this; in turn, this
-        /// calls <paramref name="onGrainDeactivateFunc"/>, in which the grain implementation should
-        /// do any additional deactivation logic, if desired.
-        /// </summary>
-        /// <param name="onGrainDeactivateFunc">If the grain implements custom deactivation logic, it supplies
-        ///     a lambda to do so here, or may simply pass "() => Task.CompletedTask". It is called in parallel with
-        ///     removing grain indexes from the silo index collections.</param>
-        Task OnDeactivateAsync(Func<Task> onGrainDeactivateFunc);
-
-        /// <summary>
-        /// Reads current grain state from the storage provider. Erases any updates to indexed and non-indexed properties.
-        /// </summary>
-        Task ReadAsync();
-
-        /// <summary>
-        /// Coordinates the writing of all indexed interfaces defined on the grain. It will retrieve this from cached
-        /// per-grain-class list of indexes and properties to do the mapping, and maps the State structure to the various
-        /// TProperties structures. It includes the grain state update in the workflow appropriately.
-        /// </summary>
-        Task WriteAsync();
-
+        #region Workflow Fault-Tolerant support
         /// <summary>
         /// This method returns the set of active workflow IDs for a fault-tolerant Total Index
         /// </summary>
@@ -57,5 +32,6 @@ namespace Orleans.Indexing.Facet
         /// This method removes a workflow ID from the list of active workflow IDs for a fault-tolerant Total Index
         /// </summary>
         Task RemoveFromActiveWorkflowIds(HashSet<Guid> removedWorkflowId);
+        #endregion Workflow Fault-Tolerant support
     }
 }

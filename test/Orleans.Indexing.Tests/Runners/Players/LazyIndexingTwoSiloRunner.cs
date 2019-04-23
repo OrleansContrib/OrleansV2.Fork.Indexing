@@ -17,22 +17,22 @@ namespace Orleans.Indexing.Tests
         /// Tests basic functionality of ActiveHashIndexPartitionedPerSiloImpl with 2 Silos
         /// </summary>
         [Fact, TestCategory("BVT"), TestCategory("Indexing")]
-        public async Task Test_Indexing_IndexLookup3()
+        public async Task Test_Lookup_3Grains_NFT_AI_LZ_PS()
         {
             await base.StartAndWaitForSecondSilo();
 
-            IPlayer2GrainNonFaultTolerantLazy p1 = base.GetGrain<IPlayer2GrainNonFaultTolerantLazy>(1);
+            IPlayer_NFT_AI_LZ_PS p1 = base.GetGrain<IPlayer_NFT_AI_LZ_PS>(1);
             await p1.SetLocation(ITC.Seattle);
 
-            IPlayer2GrainNonFaultTolerantLazy p2 = base.GetGrain<IPlayer2GrainNonFaultTolerantLazy>(2);
-            IPlayer2GrainNonFaultTolerantLazy p3 = base.GetGrain<IPlayer2GrainNonFaultTolerantLazy>(3);
+            IPlayer_NFT_AI_LZ_PS p2 = base.GetGrain<IPlayer_NFT_AI_LZ_PS>(2);
+            IPlayer_NFT_AI_LZ_PS p3 = base.GetGrain<IPlayer_NFT_AI_LZ_PS>(3);
 
             await p2.SetLocation(ITC.Seattle);
             await p3.SetLocation(ITC.SanFrancisco);
 
-            var locIdx = await base.GetAndWaitForIndex<string, IPlayer2GrainNonFaultTolerantLazy>(ITC.LocationProperty);
+            var locIdx = await base.GetAndWaitForIndex<string, IPlayer_NFT_AI_LZ_PS>(ITC.LocationProperty);
 
-            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer2GrainNonFaultTolerantLazy, Player2PropertiesNonFaultTolerantLazy>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
+            Task<int> getLocationCount(string location) => this.GetPlayerLocationCount<IPlayer_NFT_AI_LZ_PS, PlayerProperties_NFT_AI_LZ_PS>(location, ITC.DelayUntilIndexesAreUpdatedLazily);
 
             Assert.Equal(2, await getLocationCount(ITC.Seattle));
 
@@ -41,7 +41,7 @@ namespace Orleans.Indexing.Tests
 
             Assert.Equal(1, await getLocationCount(ITC.Seattle));
 
-            p2 = base.GetGrain<IPlayer2GrainNonFaultTolerantLazy>(2);
+            p2 = base.GetGrain<IPlayer_NFT_AI_LZ_PS>(2);
             Assert.Equal(ITC.Seattle, await p2.GetLocation());
 
             Assert.Equal(2, await getLocationCount(ITC.Seattle));

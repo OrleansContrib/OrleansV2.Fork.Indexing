@@ -9,6 +9,8 @@ using V = Orleans.Indexing.IIndexableGrain;
 using Orleans.Providers;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using Orleans.Core;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Orleans.Indexing
 {
@@ -29,10 +31,10 @@ namespace Orleans.Indexing
         private readonly ILogger logger;
         private readonly string _parentIndexName;
 
-        public ActiveHashIndexPartitionedPerSiloBucketImplGrainService(SiloIndexManager siloIndexManager, string parentIndexName, GrainReference grainReference)
-            : base(grainReference.GrainIdentity, siloIndexManager.Silo, siloIndexManager.LoggerFactory)
+        public ActiveHashIndexPartitionedPerSiloBucketImplGrainService(SiloIndexManager siloIndexManager, Type grainInterfaceType, string parentIndexName)
+            : base(GetGrainIdentity(siloIndexManager, grainInterfaceType, parentIndexName), siloIndexManager.Silo, siloIndexManager.LoggerFactory)
         {
-            state = new HashIndexBucketState<K, V>
+            this.state = new HashIndexBucketState<K, V>
             {
                 IndexMap = new Dictionary<K, HashIndexSingleBucketEntry<V>>(),
                 IndexStatus = IndexStatus.Available
@@ -42,6 +44,18 @@ namespace Orleans.Indexing
             this.siloIndexManager = siloIndexManager;
             this.logger = siloIndexManager.LoggerFactory.CreateLoggerWithFullCategoryName<ActiveHashIndexPartitionedPerSiloBucketImplGrainService>();
         }
+
+        private static IGrainIdentity GetGrainIdentity(SiloIndexManager siloIndexManager, Type grainInterfaceType, string indexName)
+            => GetGrainReference(siloIndexManager, grainInterfaceType, indexName).GrainIdentity;
+
+        internal static GrainReference GetGrainReference(SiloIndexManager siloIndexManager, Type grainInterfaceType, string indexName, SiloAddress siloAddress = null)
+            => siloIndexManager.MakeGrainServiceGrainReference(IndexingConstants.HASH_INDEX_PARTITIONED_PER_SILO_BUCKET_GRAIN_SERVICE_TYPE_CODE,
+                                                               IndexUtils.GetIndexGrainPrimaryKey(grainInterfaceType, indexName),
+                                                               siloAddress ?? siloIndexManager.SiloAddress);
+
+        // Called by ApplicationPartsIndexableGrainLoader.RegisterGrainServices
+        internal static void RegisterGrainService(IServiceCollection services, Type grainInterfaceType, string indexName)
+            => services.AddGrainService(sp => new ActiveHashIndexPartitionedPerSiloBucketImplGrainService(sp.GetRequiredService<SiloIndexManager>(), grainInterfaceType, indexName));
 
         public async Task<bool> DirectApplyIndexUpdateBatch(Immutable<IDictionary<IIndexableGrain, IList<IMemberUpdate>>> iUpdates, bool isUnique, IndexMetaData idxMetaData, SiloAddress siloAddress = null)
         {
@@ -80,7 +94,7 @@ namespace Orleans.Indexing
             return e;
         }
 
-        public async Task Lookup(IOrleansQueryResultStream<V> result, K key)
+        public async Task LookupAsync(IOrleansQueryResultStream<V> result, K key)
         {
             logger.Trace($"Streamed index lookup called for key = {key}");
 
@@ -99,7 +113,7 @@ namespace Orleans.Indexing
             }
         }
 
-        public Task<IOrleansQueryResult<V>> Lookup(K key)
+        public Task<IOrleansQueryResult<V>> LookupAsync(K key)
         {
             logger.Trace($"ParentIndex {_parentIndexName}: Eager index lookup called for key = {key}");
 
@@ -111,7 +125,7 @@ namespace Orleans.Indexing
             return Task.FromResult((IOrleansQueryResult<V>)new OrleansQueryResult<V>(entryValues));
         }
 
-        public Task<V> LookupUnique(K key)
+        public Task<V> LookupUniqueAsync(K key)
         {
             if (!(state.IndexStatus == IndexStatus.Available))
             {

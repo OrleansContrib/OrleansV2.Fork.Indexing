@@ -1,23 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
-using Orleans.Core;
+using Orleans.Runtime;
 
 namespace Orleans.Indexing.Facet
 {
-    public class FaultTolerantWorkflowIndexedState<TGrainState> : NonFaultTolerantWorkflowIndexedState<TGrainState>,
-                                                                  IFaultTolerantWorkflowIndexedState<TGrainState> where TGrainState : class, new()
+    internal class FaultTolerantWorkflowIndexedState<TGrainState> : NonFaultTolerantWorkflowIndexedState<TGrainState, FaultTolerantIndexedGrainStateWrapper<TGrainState>>,
+                                                                    IFaultTolerantWorkflowIndexedState<TGrainState>,
+                                                                    ILifecycleParticipant<IGrainLifecycle>
+                                                                    where TGrainState : class, new()
     {
         private readonly IGrainFactory _grainFactory;    // TODO: standardize leading _ or not; and don't do this._
-        IStorage<FaultTolerantIndexedGrainStateWrapper<TGrainState>> storage;
 
         public FaultTolerantWorkflowIndexedState(
                 IServiceProvider sp,
                 IIndexedStateConfiguration config,
+                IGrainActivationContext context,
                 IGrainFactory grainFactory
-            ) : base(sp, config)
+            ) : base(sp, config, context)
         {
             this._grainFactory = grainFactory;
             base.getWorkflowIdFunc = () => this.GenerateUniqueWorkflowId();
@@ -25,7 +28,7 @@ namespace Orleans.Indexing.Facet
 
         private bool _hasAnyTotalIndex;
 
-        private FaultTolerantIndexedGrainStateWrapper<TGrainState> ftWrappedState => this.storage.State;
+        private FaultTolerantIndexedGrainStateWrapper<TGrainState> ftWrappedState => base.nonTransactionalState.State;
 
         internal override IDictionary<Type, IIndexWorkflowQueue> WorkflowQueues
         {
@@ -39,31 +42,29 @@ namespace Orleans.Indexing.Facet
             set => this.ftWrappedState.ActiveWorkflowsSet = value;
         }
 
-        public async override Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc)
-        {
-            this.storage = base.SiloIndexManager.GetStorageBridge<FaultTolerantIndexedGrainStateWrapper<TGrainState>>(grain, base.IndexedStateConfig.StorageName);
+        public new void Participate(IGrainLifecycle lifecycle) => base.Participate<FaultTolerantWorkflowIndexedState<TGrainState>>(lifecycle);
 
-            // In order to initialize base.wrappedState etc. this must be called here.
-            await base.PreActivate(grain,
-                                   async () => { await this.storage.ReadStateAsync(); return this.storage.State; },
-                                   () => this.storage.WriteStateAsync());
+        internal async override Task OnActivateAsync(CancellationToken ct)
+        {
+            base.Logger.Trace($"Activating indexable grain of type {grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
+            await base.InitializeState();
 
             // If the list of active workflows is null or empty we can assume that we were not previously activated
             // or did not have any incomplete workflow queue items in a prior activation.
             if (this.ActiveWorkflowsSet == null || this.ActiveWorkflowsSet.Count == 0)
             {
                 this.WorkflowQueues = null;
-                await base.FinishActivateAsync(onGrainActivateFunc);
+                await base.FinishActivateAsync();
             }
             else
             {
                 // There are some remaining active workflows so they should be handled first.
                 this.PruneWorkflowQueuesForMissingInterfaceTypes();
                 await this.HandleRemainingWorkflows()
-                           .ContinueWith(t => Task.WhenAll(this.PruneActiveWorkflowsSetFromAlreadyHandledWorkflows(t.Result),
-                                                           base.FinishActivateAsync(onGrainActivateFunc)));
+                          .ContinueWith(t => Task.WhenAll(this.PruneActiveWorkflowsSetFromAlreadyHandledWorkflows(t.Result),
+                                                          base.FinishActivateAsync()));
             }
-            this._hasAnyTotalIndex = this._grainIndexes.HasAnyTotalIndex;
+            this._hasAnyTotalIndex = base._grainIndexes.HasAnyTotalIndex;
         }
 
         /// <summary>
@@ -86,13 +87,11 @@ namespace Orleans.Indexing.Facet
                 return;
             }
 
-#if !ALLOW_FT_ACTIVE
             if (interfaceToUpdatesMap.UpdateReason.IsActivationChange())
             {
                 throw new InvalidOperationException("Active indexes cannot be fault-tolerant. This misconfiguration should have" +
                                                     " been detected on silo startup. Check ApplicationPartsIndexableGrainLoader for the reason.");
             }
-#endif // !ALLOW_FT_ACTIVE
 
             if (updateIndexesEagerly)
             {
@@ -121,7 +120,7 @@ namespace Orleans.Indexing.Facet
                 // is single-threaded unless the method is marked as interleaved; this method is called from this.WriteStateAsync, which
                 // is not marked as interleaved, so the queue handler call to this.GetActiveWorkflowIdsSet blocks until this method exits.
                 this.AddWorkflowIdsToActiveWorkflows(interfaceToUpdatesMap.Select(kvp => interfaceToUpdatesMap.WorkflowIds[kvp.Key]).ToArray());
-                await base.writeGrainStateFunc();
+                await this.WriteStateAsync();
             }
 
             // If everything was successful, the before images are updated
@@ -160,41 +159,41 @@ namespace Orleans.Indexing.Facet
             var newWorkflowQ = this.GetWorkflowQueue(grainInterfaceType);
 
             // If the same workflow queue is responsible we just check what workflow records are still in process
-            if (newWorkflowQ.Equals(oldWorkflowQ))
+            if (this.SiloIndexManager.InjectableCode.AreQueuesEqual(() => newWorkflowQ.Equals(oldWorkflowQ)))
             {
                 remainingWorkflows = await oldWorkflowQ.GetRemainingWorkflowsIn(this.ActiveWorkflowsSet);
                 if (remainingWorkflows.Value != null && remainingWorkflows.Value.Count > 0)
                 {
+                    // Add an empty enumeration to make sure the queue thread is running.
+                    await oldWorkflowQ.AddAllToQueue(new Immutable<List<IndexWorkflowRecord>>(new List<IndexWorkflowRecord>()));
                     return remainingWorkflows.Value.Select(w => w.WorkflowId);
                 }
             }
-            else //the workflow queue responsible for grainInterfaceType has changed
+            else // The workflow queue responsible for grainInterfaceType has changed
             {
                 try
                 {
-                    // We try to contact the original oldWorkflowQ to get the list of remaining workflow records
-                    // in order to pass their responsibility to newWorkflowQ.
-                    remainingWorkflows = await oldWorkflowQ.GetRemainingWorkflowsIn(this.ActiveWorkflowsSet);
+                    // Get the list of remaining workflow records from oldWorkflowQ.
+                    remainingWorkflows = await this.SiloIndexManager.InjectableCode
+                                                   .GetRemainingWorkflowsIn(() => oldWorkflowQ.GetRemainingWorkflowsIn(this.ActiveWorkflowsSet));
                 }
-                catch //the corresponding workflowQ is down, we should ask its reincarnated version
+                catch
                 {
-                    // If anything bad happened, it means that oldWorkflowQ is not reachable.
-                    // Then we get our hands to reincarnatedOldWorkflowQ to get the list of remaining workflow records.
+                    // An exception means that oldWorkflowQ is not reachable. Create a reincarnatedOldWorkflowQ grain
+                    // to read the state of the oldWorkflowQ to get the list of remaining workflow records.
                     reincarnatedOldWorkflowQ = await this.GetReincarnatedWorkflowQueue(oldWorkflowQ);
                     remainingWorkflows = await reincarnatedOldWorkflowQ.GetRemainingWorkflowsIn(this.ActiveWorkflowsSet);
                 }
 
-                // If any workflow is remaining unprocessed...
+                // If any workflow is remaining unprocessed, pass their responsibility to newWorkflowQ.
                 if (remainingWorkflows.Value != null && remainingWorkflows.Value.Count > 0)
                 {
                     // Give the responsibility of handling the remaining workflow records to the newWorkflowQ.
                     await newWorkflowQ.AddAllToQueue(remainingWorkflows);
 
-                    // Check which was the target old workflow queue that responded to our request.
+                    // Remove workflows from the target old workflow queue that responded to our request.
+                    // We don't need to await this; worst-case, they will be processed again by the old-queue.
                     var targetOldWorkflowQueue = reincarnatedOldWorkflowQ ?? oldWorkflowQ;
-
-                    // It's good that we remove the workflows from the queue, but we really don't have to wait for them.
-                    // Worst-case, it will be processed again by the old-queue.
                     targetOldWorkflowQueue.RemoveAllFromQueue(remainingWorkflows).Ignore();
                     return remainingWorkflows.Value.Select(w => w.WorkflowId);
                 }
@@ -208,6 +207,9 @@ namespace Orleans.Indexing.Facet
             var primaryKey = workflowQ.GetPrimaryKeyString();
             var reincarnatedQ = this._grainFactory.GetGrain<IIndexWorkflowQueue>(primaryKey);
             var reincarnatedQHandler = this._grainFactory.GetGrain<IIndexWorkflowQueueHandler>(primaryKey);
+
+            // This is called during OnActivateAsync(), so workflowQ's may be on a different silo than the
+            // current grain activation.
             await Task.WhenAll(reincarnatedQ.Initialize(workflowQ), reincarnatedQHandler.Initialize(workflowQ));
             return reincarnatedQ;
         }
@@ -217,7 +219,7 @@ namespace Orleans.Indexing.Facet
             var initialSize = this.ActiveWorkflowsSet.Count;
             this.ActiveWorkflowsSet.Clear();
             this.ActiveWorkflowsSet.UnionWith(workflowsInProgress);
-            return (this.ActiveWorkflowsSet.Count != initialSize) ? base.writeGrainStateFunc() : Task.CompletedTask;
+            return (this.ActiveWorkflowsSet.Count != initialSize) ? this.WriteStateAsync() : Task.CompletedTask;
         }
 
         private void PruneWorkflowQueuesForMissingInterfaceTypes()
@@ -252,8 +254,7 @@ namespace Orleans.Indexing.Facet
         }
 
         /// <summary>
-        /// Adds a workflow ID to the list of active workflows
-        /// for this fault-tolerant indexable grain
+        /// Adds a workflow ID to the list of active workflows for this fault-tolerant indexable grain
         /// </summary>
         /// <param name="workflowIds">the workflow IDs to be added</param>
         private void AddWorkflowIdsToActiveWorkflows(Guid[] workflowIds)

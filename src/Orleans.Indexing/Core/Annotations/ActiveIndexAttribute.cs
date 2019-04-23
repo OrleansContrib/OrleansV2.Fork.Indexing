@@ -22,7 +22,7 @@ namespace Orleans.Indexing
         /// </summary>
         /// <param name="isEager">Determines whether the index should be updated eagerly upon any change in the indexed grains.
         ///     Otherwise, the update propagation happens lazily after applying the update to the grain itself.</param>
-        public ActiveIndexAttribute(bool isEager) : this(ActiveIndexType.HashIndexSingleBucket, isEager)
+        public ActiveIndexAttribute(bool isEager) : this(ActiveIndexType.HashIndexPartitionedPerSilo, isEager)
         {
         }
 
@@ -38,17 +38,10 @@ namespace Orleans.Indexing
         {
             switch (type)
             {
-                case ActiveIndexType.HashIndexSingleBucket:
-                    this.IndexType = typeof(IActiveHashIndexSingleBucket<,>);
-                    break;
-                case ActiveIndexType.HashIndexPartitionedByKeyHash:
-                    this.IndexType = typeof(ActiveHashIndexPartitionedPerKey<,>);
-                    break;
-                case ActiveIndexType.HashIndexPartitionedBySilo:
-                    this.IndexType = typeof(IActiveHashIndexPartitionedPerSilo<,>);
-                    break;
+                // All other Active Index types were removed
+                case ActiveIndexType.HashIndexPartitionedPerSilo:
                 default:
-                    this.IndexType = typeof(IActiveHashIndexSingleBucket<,>);
+                    this.IndexType = typeof(IActiveHashIndexPartitionedPerSilo<,>);
                     break;
             }
             this.IsEager = isEager;

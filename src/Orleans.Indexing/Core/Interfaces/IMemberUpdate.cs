@@ -26,5 +26,10 @@ namespace Orleans.Indexing
         /// </summary>
         /// <returns>the type of operation in this update</returns>
         IndexOperationType OperationType { get; }
+
+        /// <summary>
+        /// Returns whether the index update should be non-tentative, tentative, or transactional.
+        /// </summary>
+        IndexUpdateMode UpdateMode { get; }
     }
 }

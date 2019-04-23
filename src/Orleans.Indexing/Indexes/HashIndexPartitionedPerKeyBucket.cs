@@ -1,5 +1,5 @@
 using Orleans.Concurrency;
-using Orleans.Runtime;
+using Orleans.Transactions.Abstractions;
 
 namespace Orleans.Indexing
 {
@@ -11,5 +11,10 @@ namespace Orleans.Indexing
     [Reentrant]
     public abstract class HashIndexPartitionedPerKeyBucket<K, V> : HashIndexSingleBucket<K, V>, IHashIndexPartitionedPerKeyBucketInterface<K, V> where V : class, IIndexableGrain
     {
+        private protected HashIndexPartitionedPerKeyBucket(string nonTransactionalStorageProviderName)
+            : base(nonTransactionalStorageProviderName) { }
+
+        private protected HashIndexPartitionedPerKeyBucket(ITransactionalState<HashIndexBucketState<K, V>> transactionalState)
+            : base(transactionalState) { }
     }
 }

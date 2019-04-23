@@ -1,6 +1,6 @@
 namespace Orleans.Indexing
 {
-    enum IndexUpdateMode
+    public enum IndexUpdateMode
     {
         /// <summary>
         /// Tentative update for a unique index during workflow.

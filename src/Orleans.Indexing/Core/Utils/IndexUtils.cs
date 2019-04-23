@@ -8,6 +8,7 @@ using Orleans.Runtime;
 using Orleans.Indexing.Facet;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
+using System.Threading.Tasks;
 
 namespace Orleans.Indexing
 {
@@ -16,6 +17,8 @@ namespace Orleans.Indexing
     /// </summary>
     public static class IndexUtils
     {
+        public const string IndexedGrainStateName = "IndexedGrainState";
+
         /// <summary>
         /// A utility function for getting the index grainID, which is a simple concatenation of the grain
         /// interface type and indexName
@@ -24,7 +27,7 @@ namespace Orleans.Indexing
         /// <param name="indexName">the name of the index, which is the identifier of the index</param>
         /// <returns>index grainID</returns>
         public static string GetIndexGrainPrimaryKey(Type grainType, string indexName)
-            => string.Format("{0}-{1}", GetFullTypeName(grainType), indexName);
+            => $"{GetFullTypeName(grainType)}-{indexName}";
 
         /// <summary>
         /// This method extracts the name of an index grain from its primary key
@@ -79,19 +82,6 @@ namespace Orleans.Indexing
 
         internal static bool IsNullable(this Type type) => !type.IsValueType || Nullable.GetUnderlyingType(type) != null;
 
-        internal static TGrainState SetNullValues<TGrainState>(TGrainState state, IReadOnlyDictionary<string, object> propertyNullValues)
-        {
-            foreach (var propInfo in typeof(TGrainState).GetProperties())
-            {
-                var nullValue = GetNullValue(propInfo);
-                if (nullValue != null || propertyNullValues.TryGetValue(propInfo.Name, out nullValue))
-                {
-                    propInfo.SetValue(state, nullValue);
-                }
-            }
-            return state;
-        }
-
         internal static object GetNullValue(PropertyInfo propInfo)
         {
             if (propInfo.PropertyType.IsNullable())
@@ -105,6 +95,14 @@ namespace Orleans.Indexing
                 : indexAttr.NullValue.ConvertTo(propInfo.PropertyType);
         }
 
+        public static Task PerformRead<TGrainState>(this IIndexedState<TGrainState> indexedState)
+            where TGrainState : class, new()
+            => indexedState.PerformRead(_ => true);
+
+        public static Task PerformUpdate<TGrainState>(this IIndexedState<TGrainState> indexedState, Action<TGrainState> updateAction)
+            where TGrainState : class, new()
+            => indexedState.PerformUpdate(state => { updateAction(state); return true; });
+
         internal static object ConvertTo(this string value, Type propertyType)
         {
             return propertyType == typeof(DateTime)
@@ -112,12 +110,12 @@ namespace Orleans.Indexing
                 : Convert.ChangeType(value, propertyType, CultureInfo.InvariantCulture);
         }
 
-        internal static void ForEach<T>(this IEnumerable<T> enumerable, Action<T> mutator)
+        internal static void ForEach<T>(this IEnumerable<T> enumerable, Action<T> action)
         {
             // Simple but allows chaining
             foreach (var item in enumerable)
             {
-                mutator(item);
+                action(item);
             }
         }
 
@@ -209,9 +207,9 @@ namespace Orleans.Indexing
                         case INonFaultTolerantWorkflowIndexedStateAttribute _:
                             setScheme(ConsistencyScheme.NonFaultTolerantWorkflow);
                             break;
-//TODO                        case ITransactionalIndexedStateAttribute _:
-//                            setScheme(ConsistencyScheme.Transactional);
-//                            break;
+                        case ITransactionalIndexedStateAttribute _:
+                            setScheme(ConsistencyScheme.Transactional);
+                            break;
                         default:
                             throw new IndexConfigurationException($"Grain type {grainClassType.Name} has an unknown Indexing Facet constructor attribute {attr.GetType().Name}");
                     }
@@ -219,6 +217,14 @@ namespace Orleans.Indexing
             }
 
             return scheme ?? throw new IndexConfigurationException($"Grain type {grainClassType.Name} has no Indexing Facet constructor argument specified");
+        }
+
+        internal static void ShallowCopyFrom(this object dest, object src)
+        {
+            foreach (var propInfo in src.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                propInfo.SetValue(dest, propInfo.GetValue(src, null));
+            }
         }
 
         internal static IGrainStorage GetGrainStorage(IServiceProvider services, string storageName)
@@ -230,6 +236,9 @@ namespace Orleans.Indexing
             return storageProvider ?? throw new IndexConfigurationException($"No {failedProviderName()} was found while attempting to create index state storage.");
         }
 
+        public static IGrain GetGrain(this IGrainFactory grainFactory, string grainPrimaryKey, Type grainInterfaceType)
+            => Silo.GetGrain(grainFactory, grainPrimaryKey, grainInterfaceType, grainInterfaceType);
+
         internal static bool IsIndexInterfaceType(this Type indexType)
             => typeof(IIndexInterface).IsAssignableFrom(indexType);
 
@@ -240,16 +249,19 @@ namespace Orleans.Indexing
             => indexType.RequireIndexInterfaceType() && typeof(IActiveHashIndexPartitionedPerSilo).IsAssignableFrom(indexType);
 
         internal static bool IsTotalIndex(this Type indexType)
-            => indexType.RequireIndexInterfaceType() && typeof(ITotalIndex).IsAssignableFrom(indexType); // TODO Possible addition for Transactional
+            => indexType.RequireIndexInterfaceType() && typeof(ITotalIndex).IsAssignableFrom(indexType);
+
+        internal static bool IsTransactionalIndex(this Type indexType)
+            => indexType.RequireIndexInterfaceType() && typeof(ITransactionalLookupIndex).IsAssignableFrom(indexType);
 
         internal static bool IsDirectStorageManagedIndex(this Type indexType)
             => indexType.RequireIndexInterfaceType() && typeof(IDirectStorageManagedIndex).IsAssignableFrom(indexType);
 
         internal static bool IsActiveIndex(this Type indexType)
-            => !indexType.IsTotalIndex() && !indexType.IsDirectStorageManagedIndex();
+            => !indexType.IsTotalIndex() && !indexType.IsDirectStorageManagedIndex() && !indexType.IsTransactionalIndex();
 
         internal static bool IsTotalIndex(this IIndexInterface itf)
-            => itf is ITotalIndex;     // TODO Possible addition for Transactional
+            => itf is ITotalIndex;
 
         internal static bool IsDirectStorageManagedIndex(this IIndexInterface itf)
             => itf is IDirectStorageManagedIndex;

@@ -39,7 +39,7 @@ namespace Orleans.Indexing
                 _base = new IndexWorkflowQueueBase(this.SiloIndexManager, grainInterfaceType, queueSequenceNumber,
                                                    oldParentGrainServiceRef.GrainServiceSiloAddress,
                                                    isDefinedAsFaultTolerantGrain: true /*otherwise it shouldn't have reached here!*/,
-                                                   parentFunc: () => this.AsWeaklyTypedReference());
+                                                   parentFunc: () => this.AsWeaklyTypedReference(), recoveryGrainReference:oldParentGrainServiceRef);
             }
             return Task.CompletedTask;
         }

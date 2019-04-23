@@ -7,6 +7,8 @@ namespace Orleans.Indexing.Facet
     /// </summary>
     public interface IIndexedStateConfiguration
     {
+        string StateName { get; }
+
         string StorageName { get; }
     }
 }

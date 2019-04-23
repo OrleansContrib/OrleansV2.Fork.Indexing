@@ -2,35 +2,36 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
-using Orleans.Core;
+using Orleans.Runtime;
 
 namespace Orleans.Indexing.Facet
 {
-    public class NonFaultTolerantWorkflowIndexedState<TGrainState> : WorkflowIndexedStateBase<TGrainState>,
-                                                                    INonFaultTolerantWorkflowIndexedState<TGrainState> where TGrainState : class, new()
+    // This requires TWrappedState because it is subclassed by FaultTolerantWorkflowIndexedState.
+    internal class NonFaultTolerantWorkflowIndexedState<TGrainState, TWrappedState> : WorkflowIndexedStateBase<TGrainState, TWrappedState>,
+                                                                                      INonFaultTolerantWorkflowIndexedState<TGrainState>,
+                                                                                      ILifecycleParticipant<IGrainLifecycle>
+                                                                                      where TGrainState : class, new()
+                                                                                      where TWrappedState: IndexedGrainStateWrapper<TGrainState>, new()
     {
-        IStorage<IndexedGrainStateWrapper<TGrainState>> storage;
-
         public NonFaultTolerantWorkflowIndexedState(
                 IServiceProvider sp,
-                IIndexedStateConfiguration config
-            ) : base(sp, config)
+                IIndexedStateConfiguration config,
+                IGrainActivationContext context
+            ) : base(sp, config, context)
         {
             base.getWorkflowIdFunc = () => Guid.NewGuid();
         }
 
-        public override async Task OnActivateAsync(Grain grain, Func<Task> onGrainActivateFunc)
-        {
-            Debug.Assert(!(this is FaultTolerantWorkflowIndexedState<TGrainState>)); // Separate overrides
-            this.storage = base.SiloIndexManager.GetStorageBridge<IndexedGrainStateWrapper<TGrainState>>(grain, base.IndexedStateConfig.StorageName);
+        public void Participate(IGrainLifecycle lifecycle) => base.Participate<NonFaultTolerantWorkflowIndexedState<TGrainState, TWrappedState>>(lifecycle);
 
-            // In order to initialize base.wrappedState etc. this must be called here; broken out to separate calls
-            // due to FaultTolerantWorkflowIndexedState requirements.
-            await base.PreActivate(grain,
-                                   async () => { await this.storage.ReadStateAsync(); return this.storage.State; },
-                                   () => this.storage.WriteStateAsync());
-            await base.FinishActivateAsync(onGrainActivateFunc);
+        internal override async Task OnActivateAsync(CancellationToken ct)
+        {
+            Debug.Assert(!(this is FaultTolerantWorkflowIndexedState<TGrainState>));    // Ensure this is overridden
+            base.Logger.Trace($"Activating indexable grain of type {grain.GetType().Name} in silo {this.SiloIndexManager.SiloAddress}.");
+            await base.InitializeState();
+            await base.FinishActivateAsync();
         }
 
         /// <summary>
@@ -52,7 +53,7 @@ namespace Orleans.Indexing.Facet
             {
                 if (writeStateIfConstraintsAreNotViolated)
                 {
-                    await base.writeGrainStateFunc();
+                    await this.WriteStateAsync();
                 }
                 return;
             }
@@ -93,7 +94,7 @@ namespace Orleans.Indexing.Facet
                     await Task.WhenAll(new[]
                     {
                         updateIndexTypes != UpdateIndexType.None ? base.ApplyIndexUpdatesEagerly(interfaceToUpdatesMap, updateIndexTypes, isTentative: false) : null,
-                        writeStateIfConstraintsAreNotViolated ? base.writeGrainStateFunc() : null
+                        writeStateIfConstraintsAreNotViolated ? this.WriteStateAsync() : null
                     }.Coalesce());
                 }
             }
@@ -102,7 +103,7 @@ namespace Orleans.Indexing.Facet
                 this.ApplyIndexUpdatesLazilyWithoutWait(interfaceToUpdatesMap);
                 if (writeStateIfConstraintsAreNotViolated)
                 {
-                    await base.writeGrainStateFunc();
+                    await this.WriteStateAsync();
                 }
             }
 

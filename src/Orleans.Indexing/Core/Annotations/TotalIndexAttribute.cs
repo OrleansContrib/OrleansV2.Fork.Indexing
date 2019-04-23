@@ -43,7 +43,9 @@ namespace Orleans.Indexing
                 case TotalIndexType.HashIndexSingleBucket:
                     this.IndexType = typeof(ITotalHashIndexSingleBucket<,>);
                     break;
-                case TotalIndexType.HashIndexPartitionedByKeyHash:
+                case TotalIndexType.HashIndexPartitionedPerKeyHash:
+                    // This uses the class, not an interface, because there is no underlying grain implementation for per-key indexes
+                    // themselves (there is, of course, for their buckets).
                     this.IndexType = typeof(TotalHashIndexPartitionedPerKey<,>);
                     break;
                 default:
