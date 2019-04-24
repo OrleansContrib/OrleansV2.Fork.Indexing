@@ -229,7 +229,7 @@ There are a couple subtle aspects to this:
 Transactional indexes are always eager and Total. They are very similar to non-fault-tolerant eager indexes; they do not engage with the queue system, and go through the eager route directly to the hash buckets.
 
 ##### TransactionalIndexVariant
-There is an indirect relationship between the specification of an index and the consistency scheme to be used for it: the index is specified as property annotations on the `TProperties` class, while the consistency scheme is specified on the grain constructor's indexing facet argument. In fact, the exact same index specfication may be used for any consistency scheme, as long as the index definition is legal in all those schemes: Total, Eager, and PerKey or SingleBucket partitioning.
+There is an indirect relationship between the specification of an index and the consistency scheme to be used for it: the index is specified as property annotations on the `TProperties` class, while the consistency scheme is specified on the grain constructor's indexing facet argument. In fact, the exact same index specification may be used for any consistency scheme, as long as the index definition is legal in all those schemes: Total, Eager, and PerKey or SingleBucket partitioning.
 
 Thus, the internal specifications of Transaction-compatible indexes (currently, Total indexes either PerKey or SingleBucket partitioned, or DSMI) are annotated with the `TransactionalIndexVariantAttribute`, which identifies the variant of the index implementation class that has `TransactionAttribute`-annotated methods. The `TransactionAttribute` annotation is required for Transactions to have a chain of such annotated methods (a grain call that is not so annotated does not participate in a transaction, and thus `TransactionalState.PerformRead` and `TransactionalState.PerformUpdate` would fail).
 
@@ -244,7 +244,7 @@ The impact of locking can be somewhat mitigated by partitioning the index Per-Ke
 
 In the case of SingleBucket partitioning, or of Per-Key partitioning with high collision rates, it is possible to encounter Transaction timeouts as the load increases. 
 
-`DirectStorageManagedIndex`es (DSMI) are currently supported only for the Orleans.CosmosDB storage provider, which does not yet implment the required interfaces to participate in Orleans Transactions. Because of this, DSMI causes the `TransactionalStateStorageProviderWrapper` to be used. This puts an additional "CommittedState." level into the property path that is indexed by the provider. The DSMI code should be revisited when Orleans.CosmosDB supports transactional interfaces; in this case, the `TransactionalStateStorageProviderWrapper` may still be used by non-supporting providers.
+`DirectStorageManagedIndex`es (DSMI) are currently supported only for the Orleans.CosmosDB storage provider, which does not yet implement the required interfaces to participate in Orleans Transactions. Because of this, DSMI causes the `TransactionalStateStorageProviderWrapper` to be used. This puts an additional "CommittedState." level into the property path that is indexed by the provider. The DSMI code should be revisited when Orleans.CosmosDB supports transactional interfaces; in this case, the `TransactionalStateStorageProviderWrapper` may still be used by non-supporting providers.
 
 In addition to some Transactional Indexing tests sprinkled through the rest of the Unit Tests, there are two sets of tests targeted specifically for Transactions:
 - `*TransactionalPlayer*`: This uses the *Player* properties definitions to test commit and rollback of index inserts and updates.
@@ -318,7 +318,7 @@ There are still a number of TODOs in the code, mostly related to:
 
 ### Performance
 Some specific performance items are:
-  - To reduce lock contention due to hash-bucket collisions for Per-Key indexes or SingleBucket/Per-Silo indexes, consinder a secondary hash or other method to granularize by multiple states.
+  - To reduce lock contention due to hash-bucket collisions for Per-Key indexes or SingleBucket/Per-Silo indexes, consider a secondary hash or other method to granularize by multiple states.
   - For chained buckets, it may be possible to detect in advance that the current bucket will not be modified (the index value is not found in it) and that its NextBucket is already specified, in which case we can avoid locking the current bucket with PerformUpdate. However, doing so would likely involve a PerformRead and then a scheduling point, allowing another operation to change things.
   - We currently require sequentially executing individual transactional index updates in a canonical order. This could be faster if we could execute in parallel without deadlocking.
 
